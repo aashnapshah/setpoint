@@ -8,18 +8,14 @@ logger = logging.getLogger(__name__)
 DEMOGRAPHIC_FIELDS = ['Ethnicity', 'Gender', 'Race']
 AGE_RANGE = {'min': 18, 'max': 89}
 
-def process_demographics(df: pd.DataFrame) -> pd.DataFrame:
+def get_demographics_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extract and filter demographic data.
-    """
-    logger.info("Processing demographics...")
-    
+    """    
     demo_df = extract_basic_demographics(df)
     age_df = process_age(df)
     demo_df = pd.concat([demo_df, age_df])
     demo_df = pivot_and_filter_demographics(demo_df)
-    
-    logger.info(f"Demographics processed. Remaining subjects: {len(demo_df)}")
     return demo_df
 
 def extract_basic_demographics(df: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +24,6 @@ def extract_basic_demographics(df: pd.DataFrame) -> pd.DataFrame:
     demo_df['text_value'] = demo_df['code'].str.split('/').str[1]
     demo_df['code'] = demo_df['code'].str.split('/').str[0]
     demo_df = demo_df[demo_df['code'].isin(DEMOGRAPHIC_FIELDS)]
-    
     logger.info(f"Extracted basic demographics for {demo_df['subject_id'].nunique()} subjects")
     return demo_df
 
@@ -38,11 +33,18 @@ def process_age(df: pd.DataFrame) -> pd.DataFrame:
     Process age information from birth dates.
     """
     age_df = df[df['code'] == 'MEDS_BIRTH'][['subject_id', 'code', 'time']]
-    age_df['code'] = 'Age'
-    age_df['text_value'] = (pd.Timestamp.today() - pd.to_datetime(age_df['time'])).dt.days // 365
-    
-    logger.info(f"Processed age data for {len(age_df)} subjects")
+    age_df['code'] = 'DOB'    #age_df['Age (Today)'] = (pd.Timestamp.today() - pd.to_datetime(age_df['time'])).dt.days // 365
+    age_df['text_value'] = age_df['time']
     return age_df
+
+def calculate_age(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate age from birth date.
+    """
+    df['time'] = pd.to_datetime(df['time'])
+    df['DOB'] = pd.to_datetime(df['dob'])
+    df['Age'] = (df['time'] - df['dob']).dt.days // 365
+    return df
 
 def pivot_and_filter_demographics(demo_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -52,10 +54,10 @@ def pivot_and_filter_demographics(demo_df: pd.DataFrame) -> pd.DataFrame:
                             columns='code', 
                             values='text_value')
                      .reset_index()
-                     .dropna(subset=['Gender', 'Age', 'Race', 'Ethnicity']))
+                     .dropna(subset=['Gender', 'DOB', 'Race', 'Ethnicity']))
     
-    demo_df = demo_df[(demo_df['Age'].astype(float) >= AGE_RANGE['min']) & 
-                      (demo_df['Age'].astype(float) <= AGE_RANGE['max'])]
+    #demo_df = demo_df[(demo_df['Age'].astype(float) >= AGE_RANGE['min']) & 
+    #                  (demo_df['Age'].astype(float) <= AGE_RANGE['max'])]
     
     logger.info(f"After filtering: {len(demo_df)} subjects remain")
     return demo_df

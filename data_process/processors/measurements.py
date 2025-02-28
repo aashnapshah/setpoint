@@ -11,7 +11,7 @@ LOINC_CODES = {
     'BMI': "LOINC/39156-5"
 }
 
-def process_bmi(df: pd.DataFrame) -> pd.DataFrame:
+def get_bmi_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Standardize measurements and compute BMI.
     """
@@ -23,11 +23,7 @@ def process_bmi(df: pd.DataFrame) -> pd.DataFrame:
     
     # Combine with existing BMI measurements
     final_bmi = combine_with_existing_bmi(df, bmi_df)
-    
-    # Filter invalid BMI values
     final_bmi = filter_bmi_values(final_bmi)
-    
-    logger.info(f"BMI processing complete. Records: {len(final_bmi)}")
     return final_bmi
 
 # def process_weight(df: pd.DataFrame) -> pd.DataFrame:
@@ -91,12 +87,12 @@ def calculate_bmi(df: pd.DataFrame) -> pd.DataFrame:
     )
     return df.dropna(subset=['BMI_computed'])
 
-def combine_with_existing_bmi(original_df: pd.DataFrame, computed_df: pd.DataFrame) -> pd.DataFrame:
+def combine_with_existing_bmi(df: pd.DataFrame, computed_df: pd.DataFrame) -> pd.DataFrame:
     """
     Combine computed BMI with existing BMI measurements.
     """
     # Get existing BMI measurements
-    existing_bmi = original_df[original_df['code'] == LOINC_CODES['BMI']].copy()
+    existing_bmi = df[df['code'] == LOINC_CODES['BMI']].copy()
     existing_bmi = existing_bmi.rename(columns={'numeric_value': 'BMI_existing'})
     
     # Merge computed and existing BMI
@@ -112,6 +108,11 @@ def combine_with_existing_bmi(original_df: pd.DataFrame, computed_df: pd.DataFra
                                         bins=[0, 18.5, 24.9, 29.9, 34.9, 39.9, 100], 
                                         labels=['Underweight', 'Normal', 'Overweight', 'Obesity', 'Severe Obesity', 
                                                 'Morbid Obesity'])
+    
+    # Print how many calculated and how many in system in one line
+    print(f"Calculated BMI: {len(merged_bmi.dropna(subset=['BMI_computed']))} ({merged_bmi.dropna(subset=['BMI_computed']).subject_id.nunique()} subjects)")
+    print(f"Extracted BMI: {len(merged_bmi.dropna(subset=['BMI_existing']))} ({merged_bmi.dropna(subset=['BMI_existing']).subject_id.nunique()} subjects)")
+    print(f'Total Subjects with BMI: {len(merged_bmi)} ({merged_bmi.subject_id.nunique()} subjects)')
     return merged_bmi
 
 def filter_bmi_values(df: pd.DataFrame) -> pd.DataFrame:
