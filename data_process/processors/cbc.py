@@ -46,23 +46,28 @@ CBC_REFERENCE_INTERVALS = {
 }
 
 UNIT_CONVERSIONS = {
-    # Hemoglobin and MCHC units
-    'g/dL': 'g/dL', 'G/DL': 'g/dL', 'g/dl': 'g/dL',
-    # HCT and RDW units
+    'g/dL': 'g/dL',
+    'G/DL': 'g/dL',
+    'g/dl': 'g/dL',
     '%': '%',
-    # Platelet and WBC units
-    'K/uL': 'K/uL', 'KUL': 'K/uL', 
-    'x10E3/uL': 'K/uL', '10x3/uL': 'K/uL',
+    'None': 'None',
+    'K/uL': 'K/uL',
+    'KUL': 'K/uL',
+    'x10E3/uL': 'K/uL',  
+    '10x3/uL': 'K/uL',   
+    'pg': 'pg',
+    'PG': 'pg',
+    'fL': 'fL',
+    'FL': 'fL',
+    'fl': 'fL',
     'Thousand/uL': 'K/uL',
-    # MCH units
-    'pg': 'pg', 'PG': 'pg',
-    # MCV units
-    'fL': 'fL', 'FL': 'fL', 'fl': 'fL',
-    # RBC units
-    'Million/uL': 'Million/uL', 'MUL': 'Million/uL', 
-    'MIL/uL': 'Million/uL', 'M/uL': 'Million/uL',
-    '10*6/uL': 'Million/uL', '10x6/uL': 'Million/uL',
-    'x10E6/uL': 'Million/uL'
+    'Million/uL': 'Million/uL',  
+    'MUL': 'Million/uL',
+    'MIL/uL':'Million/uL',
+    '10*6/uL': 'Million/uL',
+    '10x6/uL': 'Million/uL',
+    'M/uL': 'Million/uL',
+    'x10E6/uL': 'Million/uL',
 }
 
 def get_cbc_data(df: pd.DataFrame, demographic_df: pd.DataFrame) -> pd.DataFrame:
@@ -106,7 +111,7 @@ def check_units(df: pd.DataFrame) -> Dict[str, List[str]]:
         units = df[df['code'] == code]['unit'].unique()
         if len(units) > 1:
             unit_issues[code] = units.tolist()
-            logger.warning(f"Test {code} has multiple units: {units}")
+            logger.warning(f"{code} has multiple units: {units}")
     
     return unit_issues
 

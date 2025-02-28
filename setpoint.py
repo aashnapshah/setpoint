@@ -2,15 +2,29 @@ import numpy as np
 from sklearn.mixture import GaussianMixture
 from datetime import datetime
 
-def calculate_setpoint(x, y):
+def process_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Process the data to get the setpoint.
+    """
+    x = df['time']
+    y = df['numeric_value']
+    
+    # Sort by date
+    sorted_idx = np.argsort(x.flatten())
+    x = x[sorted_idx]
+    y = y[sorted_idx]
+    
+    # Convert datetime to numeric days if necessary
+    if isinstance(x[0], datetime):
+        x = (np.array(x) - x[0]).astype('timedelta64[D]').astype(int)
+ 
+    return x, y
+
+def calculate_setpoint(x, y, min_marker_gap=90, min_tests=5):
     """
     Estimate the setpoint of a time series defined by dates x and values y.
     """
-    # Define basic parameters
-    min_marker_gap = 90  # days
-    min_tests = 5  # minimum number of markers
-
-    # Convert to column vectors and clean data
+    
     x = np.array(x).reshape(-1, 1)
     y = np.array(y).reshape(-1, 1)
     
@@ -22,15 +36,6 @@ def calculate_setpoint(x, y):
     # Remove duplicate dates/times
     x, unique_idx = np.unique(x, return_index=True)
     y = y[unique_idx]
-
-    # Sort by date
-    sorted_idx = np.argsort(x.flatten())
-    x = x[sorted_idx]
-    y = y[sorted_idx]
-
-    # Convert datetime to numeric days if necessary
-    if isinstance(x[0], datetime):
-        x = (np.array(x) - x[0]).astype('timedelta64[D]').astype(int)
     
     # Limit to markers with the desired minimum spacing gap
     nearest_marker = np.full(len(x), np.nan)
