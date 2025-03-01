@@ -1,0 +1,15 @@
+numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+seaborn
+femr  # For ontology handling
+datasets  # For parquet file handling
+python-dateutil
+jupyter
+ipykernel
+black  # Code formatting
+pytest  # Testing
+tqdm
+jupyterlab
