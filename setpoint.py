@@ -1,95 +1,169 @@
 import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture
 from datetime import datetime
+import os
+import argparse
 
-def process_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Process the data to get the setpoint.
-    """
-    x = df['time']
-    y = df['numeric_value']
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Calculate physiological setpoints from CBC data")
+    parser.add_argument("--min_gap", type=int, default=30, help="Minimum days between measurements")
+    parser.add_argument("--min_tests", type=int, default=5, help="Minimum number of tests required")
+    parser.add_argument("--data_dir", type=str, default="data", help="Directory containing CBC data")
+    parser.add_argument("--output_dir", type=str, default="data/setpoint_calculations", help="Output directory")
+    return parser.parse_args()
+
+def process_dataframe(df):
+    """Process DataFrame with time and numeric_value columns."""
+    x = df['time'].values.astype(np.datetime64)
+    y = df['numeric_value'].values
+    return x, y
+
+def process_data(x, y):
+    """Process raw time series data."""
+    # Convert inputs to numpy arrays
+    x = np.array(x)
+    y = np.array(y)
     
-    # Sort by date
+    # Sort chronologically
     sorted_idx = np.argsort(x.flatten())
     x = x[sorted_idx]
     y = y[sorted_idx]
     
-    # Convert datetime to numeric days if necessary
-    if isinstance(x[0], datetime):
-        x = (np.array(x) - x[0]).astype('timedelta64[D]').astype(int)
- 
-    return x, y
+    # Convert datetime to numeric days
+    if isinstance(x[0], (np.datetime64, datetime)):
+        x = (x - x[0]).astype('timedelta64[D]').astype(int)
+    
+    # Clean data
+    valid_idx = ~np.isnan(y)
+    x = x[valid_idx].reshape(-1, 1)
+    y = y[valid_idx].reshape(-1, 1)
+    
+    # Remove duplicates
+    unique_x, unique_idx = np.unique(x, return_index=True)
+    return unique_x.reshape(-1, 1), y[unique_idx]
 
-def calculate_setpoint(x, y, min_marker_gap=90, min_tests=5):
-    """
-    Estimate the setpoint of a time series defined by dates x and values y.
-    """
-    
-    x = np.array(x).reshape(-1, 1)
-    y = np.array(y).reshape(-1, 1)
-    
-    # Remove NaN values
-    idx = ~np.isnan(y)
-    x = x[idx]
-    y = y[idx]
-    
-    # Remove duplicate dates/times
-    x, unique_idx = np.unique(x, return_index=True)
-    y = y[unique_idx]
-    
-    # Limit to markers with the desired minimum spacing gap
-    nearest_marker = np.full(len(x), np.nan)
-    for i in range(len(x)):
-        # Calculate distances excluding the current element
-        distances = np.abs(x[i] - np.setdiff1d(x, x[i]))
-        nearest_marker[i] = np.min(distances)
-    x = x[nearest_marker > min_marker_gap]
-    y = y[nearest_marker > min_marker_gap]
-    
-    # Check if there are enough valid data points
+def filter_measurements(x, y, min_gap, min_tests):
+    """Filter measurements by time gap and minimum tests."""
     if len(x) < min_tests:
-        raise ValueError(f"Less than {min_tests} data points are valid")
+        return None, None
+        
+    # Filter by minimum time gap
+    nearest_marker = np.array([
+        np.min(np.abs(x[i] - np.setdiff1d(x, x[i]))) 
+        for i in range(len(x))
+    ])
+    valid_idx = nearest_marker > min_gap
+    x = x[valid_idx]
+    y = y[valid_idx]
     
-    # Fit Gaussian Mixture Models and calculate AIC for 1, 2, and 3 components
-    aic = np.full(3, np.inf)
-    mdl = [None] * 3
+    return (x, y) if len(x) >= min_tests else (None, None)
+
+def fit_gmm(y):
+    """Fit GMM models and select best fit."""
+    y = y.reshape(-1, 1)
     
-    # Convert to numpy array first
-    y_array = np.array(y)
+    # Common GMM parameters
+    gmm_params = {
+        'max_iter': 1000,
+        'reg_covar': 1e-6,
+        'random_state': 42,
+        'init_params': 'kmeans'
+    }
     
-    for k in range(1, 4):
-        try:
-            # Reshape the data inside the loop
-            y_reshaped = y_array.reshape(-1, 1)
+    # Try 2-component GMM
+    gmm = GaussianMixture(n_components=2, **gmm_params).fit(y)
+    
+    # Check if 2-component model is good
+    if gmm.converged_ and np.max(gmm.weights_) > 0.7:
+        max_idx = np.argmax(gmm.weights_)
+        return (
+            gmm.means_[max_idx][0],
+            np.sqrt(gmm.covariances_[max_idx][0][0]) / gmm.means_[max_idx][0],
+            'gmm'
+        )
+    
+    # Try 3-component GMM
+    gmm = GaussianMixture(n_components=3, **gmm_params).fit(y)
+    
+    # Check if 3-component model is good
+    if gmm.converged_ and np.max(gmm.weights_) > 0.45:
+        max_idx = np.argmax(gmm.weights_)
+        return (
+            gmm.means_[max_idx][0],
+            np.sqrt(gmm.covariances_[max_idx][0][0]) / gmm.means_[max_idx][0],
+            'gmm'
+        )
+    
+    # Fall back to basic statistics
+    return np.mean(y), np.std(y) / np.mean(y), 'statistical'
+
+def calculate_setpoint(x, y, min_gap, min_tests):
+    """Calculate physiological setpoint from input data."""
+    x, y = process_data(x, y)
+    x, y = filter_measurements(x, y, min_gap, min_tests)
+    if x is None:
+        return np.nan, np.nan, "insufficient_data"
+    
+    return fit_gmm(y)
+
+
+def main():
+    args = parse_args()
+    
+    df = pd.read_csv(os.path.join(args.data_dir, 'subject_cbc_events.csv'))
+
+    # Process each group
+    setpoints = []
+    insufficient_data = []
+    
+    for (subject, code), group in df.groupby(['subject_id', 'code']):
+        if not group.empty:
+            x, y = process_dataframe(group)
+            setpoint, uncertainty, model = calculate_setpoint(x, y, args.min_gap, args.min_tests)
             
-            gmm = GaussianMixture(
-                n_components=k,
-                max_iter=1000,
-                reg_covar=1e-6,
-                random_state=42,
-                init_params='kmeans'
-            )
-            gmm.fit(y_reshaped)
-            mdl[k-1] = gmm
-            aic[k-1] = gmm.aic(y_reshaped)
-        except Exception as e:
-            print(f"Error fitting GMM with {k} components: {e}")
-            print(f"Error fitting GMM with {k} components")
-            continue
+            if model == "insufficient_data":
+                insufficient_data.append({
+                    'subject_id': subject,
+                    'code': code,
+                    'n_measurements': len(group)
+                })
+                print(f"Insufficient data for subject {subject}, code {code} ({len(group)} measurements)")
+            else:
+                setpoints.append({
+                    'subject_id': subject,
+                    'code': code,
+                    'setpoint': setpoint,
+                    'uncertainty': uncertainty,
+                    'model_type': model
+                })
 
-    # Fallback: use simple statistics (mean and std) by default
-    setpoint = np.mean(y)
-    setpoint_cv = np.std(y) / setpoint
+    # Save results
+    if setpoints:
+        setpoint_df = pd.DataFrame(setpoints)
+        output_file = os.path.join(args.output_dir, f'setpoints_gap:{args.min_gap}_tests:{args.min_tests}.csv')
+        setpoint_df.to_csv(output_file, index=False)
+        print(f"\nFound {len(setpoints)} valid setpoints")
+        print(f"Results saved to {output_file}")
+    
+    # Analyze insufficient data cases
+    if insufficient_data:
+        insuff_df = pd.DataFrame(insufficient_data)
+        print("\nInsufficient data summary by code:")
+        summary = insuff_df.groupby('code').agg({
+            'subject_id': 'count',
+            'n_measurements': ['mean', 'min', 'max']
+        })
+        summary.columns = ['n_subjects', 'avg_measurements', 'min_measurements', 'max_measurements']
+        print(summary)
+        
+        # Save insufficient data cases
+        insuff_file = os.path.join(args.output_dir, f'insufficient_gap:{args.min_gap}_tests:{args.min_tests}.csv')
+        insuff_df.to_csv(insuff_file, index=False)
+        print(f"\nInsufficient data cases saved to {insuff_file}")
 
-    # Use GMM results if a dominant multi-component model exists
-    if not all(m is None for m in mdl):
-        best_idx = np.argmin(aic)  # zero-indexed best model
-        best_model = mdl[best_idx]
-        mdl_prop = best_model.weights_
-        model_num = best_idx + 1  # Adjust to 1-indexing to match MATLAB logic
-        if (model_num == 2 and np.max(mdl_prop) > 0.7) or (model_num == 3 and np.max(mdl_prop) > 0.45):
-            max_idx = np.argmax(mdl_prop)
-            setpoint = best_model.means_[max_idx][0]
-            setpoint_cv = np.sqrt(best_model.covariances_[max_idx][0]) / setpoint
-
-    return setpoint, setpoint_cv[0]
+if __name__ == "__main__":
+    main()
