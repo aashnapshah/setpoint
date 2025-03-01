@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, Union
 from datetime import datetime
 
 # Constants

@@ -115,7 +115,7 @@ def check_units(df: pd.DataFrame) -> Dict[str, List[str]]:
     
     return unit_issues
 
-def filter_cbc(df: pd.DataFrame, min_tests: int = 2, min_days_between: int = 0) -> pd.DataFrame:
+def filter_cbc(df: pd.DataFrame, min_tests: int = 5, min_days_between: int = 0) -> pd.DataFrame:
     """
     Filter CBC tests based on frequency and time intervals.
     """
@@ -165,8 +165,8 @@ def get_cbc_subject_statistics(df: pd.DataFrame) -> pd.DataFrame:
         time_diffs = group['time'].diff().dropna().dt.total_seconds() / (60 * 60 * 24)  # Convert to days
         return pd.Series({
             'num_tests_taken': len(group),
-            'num_tests_within_reference_interval': len(group[group['within_reference_interval'] == True]),
-            'percentage_tests_within_reference_interval': f"{len(group[group['within_reference_interval'] == True]) / len(group) * 100:.2f}%",
+            'num_tests_within_reference': len(group[group['within_reference'] == True]),
+            'percentage_tests_within_reference': f"{len(group[group['within_reference'] == True]) / len(group) * 100:.2f}%",
             'days_between_first_and_last': (group['time'].max() - group['time'].min()).days,
             'avg_days_between_tests': f"{time_diffs.mean():.2f}" if not time_diffs.empty else None,
             'min_days_between_tests': f"{time_diffs.min():.2f}" if not time_diffs.empty else None,
@@ -185,8 +185,8 @@ def get_cbc_statistics(df: pd.DataFrame) -> pd.DataFrame:
     for code in df['code'].unique():
         code_df = df[df['code'] == code]
         print(f"# {code} tests: {len(code_df)}")
-        print(f"# {code} tests within reference interval: {len(code_df[code_df['within_reference_interval'] == True])}")
-        print(f"# {code} tests outside reference interval: {len(code_df[code_df['within_reference_interval'] == False])}")
+        print(f"# {code} tests within reference interval: {len(code_df[code_df['within_reference'] == True])}")
+        print(f"# {code} tests outside reference interval: {len(code_df[code_df['within_reference'] == False])}")
         print(f"# {code} mean: {code_df['numeric_value'].mean()}")
         print(f"# {code} median: {code_df['numeric_value'].median()}")
         print(f"# {code} min: {code_df['numeric_value'].min()}")
@@ -199,11 +199,9 @@ def get_in_reference_interval(df: pd.DataFrame, demographic_df: pd.DataFrame) ->
     Flag subjects whose CBC values are within the reference interval.
     """
     # Merge the demographic data with the CBC data
-    merged_df = pd.merge(df, demographic_df, on='subject_id', how='left')
-    
-    # Flag subjects whose CBC values are within the reference interval
-    merged_df['within_reference_interval'] = merged_df.apply(lambda row: is_in_reference_interval(row), axis=1)
-    
+    merged_df = pd.merge(df, demographic_df[['subject_id', 'Gender']], on='subject_id', how='left')
+    merged_df['within_reference'] = merged_df.apply(lambda row: is_in_reference_interval(row), axis=1)
+    merged_df.drop(columns='Gender', inplace=True)
     return merged_df
 
 def is_in_reference_interval(row: pd.Series) -> bool:

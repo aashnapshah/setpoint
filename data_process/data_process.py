@@ -1,7 +1,7 @@
 import os
 import argparse
 import pandas as pd
-from typing import Dict, Union
+from typing import Dict, Union, Tuple
 import glob
 import datasets
 
@@ -10,16 +10,13 @@ from processors.measurements import get_bmi_data, get_bmi_statistics
 from processors.cbc import get_cbc_data, get_cbc_subject_statistics
 
 DEFAULT_PATH = '/Users/aashnashah/Desktop/ssh_mount/data/EHRSHOT/meds_omop_ehrshot/'
-DEFAULT_MIN_TESTS = 5
-DEFAULT_MIN_DAYS_BETWEEN = 0
-DEFAULT_OUTPUT_DIR = "../data"
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Process EHR data for ML tasks.")
     parser.add_argument("--raw", type=bool, default=False)
     parser.add_argument("--data_dir", type=str, default=DEFAULT_PATH)
-    parser.add_argument("--output_dir", type=str, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--output_dir", type=str, default='../data')
     args = parser.parse_args()
 
     return args
@@ -51,9 +48,7 @@ def save_csv(data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
         print(f"Saved {df_name} to {filepath}")
 
 def get_dataset_statistics(data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], name: str = "", stage: str = "") -> None:
-    """
-    Print statistics for dataset(s).
-    """
+    """Print unified statistics for dataset(s)."""
     if stage:
         print(f"\n{stage} Dataset Statistics:")
     
@@ -63,7 +58,7 @@ def get_dataset_statistics(data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], n
         print(f"\n{df_name} data:")
         print(f"# Events: {df.shape[0]}")
         print(f"# Unique subjects: {len(df['subject_id'].unique())}")
-        print(f"# Average # Events per Patient: {df.groupby('subject_id').size().mean():.2f}")
+        print(f"Average # Events per Patient: {df.groupby('subject_id').size().mean():.2f}")
 
 def subset_patient_data(data_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     """Merge patient dataframes based on common subject IDs."""
@@ -76,88 +71,99 @@ def subset_patient_data(data_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.Data
         for name, df in data_dict.items()
     }
 
-def merge_patient_data(data_dict: Dict[str, pd.DataFrame], time_tolerance: pd.Timedelta = pd.Timedelta("4D")) -> pd.DataFrame:
-    """Merge patient dataframes with flexibility in time matching and handling static demographics."""
-    # Identify static (demographics) and time-series dataframes
-    time_series_dfs = {name: df.copy() for name, df in data_dict.items() if "time" in df.columns}
-    static_dfs = {name: df.copy() for name, df in data_dict.items() if "time" not in df.columns}
-
-     # Convert time columns to datetime if needed
-    for name in time_series_dfs:
-        time_series_dfs[name]["time"] = pd.to_datetime(time_series_dfs[name]["time"])
-        time_series_dfs[name] = time_series_dfs[name].sort_values(["subject_id", "time"])
-
-    # Merge time-series data using nearest time matching
-    merged_df = None
-    for df in time_series_dfs.values():
-        if merged_df is None:
-            merged_df = df
-        else:
-            merged_df = pd.merge_asof(
-                merged_df.sort_values(["subject_id", "time"]),
-                df.sort_values(["subject_id", "time"]),
-                on="time",
-                by="subject_id",
-                direction="nearest",
-                tolerance=time_tolerance
-            )
-
-    # Merge static data (demographics) on subject_id
-    for df in static_dfs.values():
-        merged_df = merged_df.merge(df, on="subject_id", how="left")
-    merged_df['Age'] = (merged_df['time'] - merged_df['DOB']).dt.days // 365
-    return merged_df
+def merge_patient_data(data_dict: Dict[str, pd.DataFrame], time_tolerance: pd.Timedelta = pd.Timedelta("4D")) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
+    """Merge patient data both by subject ID and time-based matching."""
+    # First get common subjects across all datasets
+    subject_sets = {name: set(df["subject_id"].unique()) for name, df in data_dict.items()}
+    common_subjects = set.intersection(*subject_sets.values()) if subject_sets else set()
+    
+    filtered_dict = {
+        name: df[df['subject_id'].isin(common_subjects)]
+        for name, df in data_dict.items()
+    }
+    
+    # Then do time-based merging for measurements
+    time_series_dfs = {
+        name: df.copy().sort_values(['time'])
+        for name, df in filtered_dict.items() 
+        if 'time' in df.columns
+    }
+    
+    if time_series_dfs:
+        merged_df = pd.merge_asof(
+            time_series_dfs['cbc_measurements'],
+            time_series_dfs['body_measurements'],
+            on="time",
+            by="subject_id",
+            direction="nearest",
+            tolerance=time_tolerance
+        )
+        
+        # Merge demographics
+        demographics_df = filtered_dict['demographics'].copy()
+        demographics_df['subject_id'] = demographics_df['subject_id'].astype(int)
+        final_df = merged_df.merge(demographics_df, on='subject_id', how='left')
+    else:
+        final_df = pd.DataFrame()
+        
+    return filtered_dict, final_df
 
 def get_processed_data(name: str, process_fn, args, dependencies=None) -> pd.DataFrame:
     """Process data or load if exists."""
     processed_path = os.path.join(args.output_dir, "processed", f"{name}.csv")
     
+    # Load cached data if exists and not raw mode
     if not args.raw and os.path.exists(processed_path):
         print(f"Loading {name} data from {processed_path}")
-        return pd.read_csv(processed_path)
+        df = pd.read_csv(processed_path)
+        if 'time' in df.columns:
+            df['time'] = pd.to_datetime(df['time']).astype('datetime64[s]')
+        return df
     
-    if not 'raw_df' in globals():
+    # Load raw data if needed
+    if 'raw_df' not in globals():
         globals()['raw_df'] = load_dataset(args.data_dir)
         get_dataset_statistics(raw_df, name="Raw", stage="Initial")
     
-    print(f"\n Processing {name} data...")
+    # Process data
+    print(f"\nProcessing {name} data...")
     result = process_fn(raw_df, *dependencies) if dependencies else process_fn(raw_df)
-    save_csv(result, args.output_dir + "/processed", name)
+    save_csv(result, os.path.join(args.output_dir, "processed"), name)
     return result
 
 def main():
     args = parse_args()
             
-    # Process data in stages to manage memory
-    demo_df = get_processed_data("demographics", get_demographics_data, args=args)
-    body_df = get_processed_data("body_measurements", get_bmi_data, args=args)
-    cbc_df = get_processed_data("cbc_measurements", get_cbc_data, args=args, dependencies=[demo_df])
+    # Process data in stages
+    data_dict = {}
     
-    # Merge datasets based on common subject IDs
-    print("\nMerging Data:")
+    # Base data
+    demographics = get_processed_data("demographics", get_demographics_data, args=args)
+    body_measurements = get_processed_data("body_measurements", get_bmi_data, args=args)
+    cbc_measurements = get_processed_data("cbc_measurements", get_cbc_data, args=args, dependencies=[demographics])
+    
+    # Combine all processed data
     data_dict = {
-        "demographics": demo_df,
-        "body_measurements": body_df,
-        "cbc_measurements": cbc_df
+        "demographics": demographics,
+        "body_measurements": body_measurements,
+        "cbc_measurements": cbc_measurements
     }
-
-    filtered_data = subset_patient_data(data_dict)
-    get_dataset_statistics(filtered_data, name="Processed", stage="Merged")
-    save_csv(filtered_data, args.output_dir + "/processed")
-
-    merged_data = merge_patient_data(filtered_data)
-    save_csv(merged_data, args.output_dir + "/merged", name="all_processed_events.csv")
-    print(merged_data.head())
     
-    # Print summaries of merged data
+    # Merge data
+    print("\nMerging Data:")
+    filtered_data, merged_df = merge_patient_data(data_dict)
+    # Save outputs
+    save_csv(filtered_data, os.path.join(args.output_dir, "merged"))
+    save_csv(merged_df, args.output_dir, name="subject_cbc_events")
+    
+    # Print summaries
     print("\nDemographics Summary:")
     print(get_demographic_summary(filtered_data["demographics"]))
-    
     print("\nBMI Statistics:")
     print(get_bmi_statistics(filtered_data["body_measurements"]))
-    
     print("\nCBC Statistics:")
-    print(get_cbc_subject_statistics(filtered_data["cbc_measurements"]).head())
-
+    per_subject_stats = get_cbc_subject_statistics(filtered_data["cbc_measurements"])
+    save_csv(per_subject_stats, os.path.join(args.output_dir, "summary_statistics"), name="cbc_subject_statistics")
+    
 if __name__ == "__main__":
     main()

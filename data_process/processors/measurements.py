@@ -22,9 +22,9 @@ def get_bmi_data(df: pd.DataFrame) -> pd.DataFrame:
     bmi_df = calculate_bmi(merged_df)
     
     # Combine with existing BMI measurements
-    final_bmi = combine_with_existing_bmi(df, bmi_df)
-    final_bmi = filter_bmi_values(final_bmi)
-    return final_bmi
+    agg_bmi = combine_with_existing_bmi(df, bmi_df)
+    agg_bmi = filter_bmi_values(agg_bmi)
+    return agg_bmi
 
 # def process_weight(df: pd.DataFrame) -> pd.DataFrame:
 #     """Process and standardize weight measurements."""
@@ -103,8 +103,8 @@ def combine_with_existing_bmi(df: pd.DataFrame, computed_df: pd.DataFrame) -> pd
         how='outer'
     )
     
-    merged_bmi['final_bmi'] = merged_bmi['BMI_existing'].fillna(merged_bmi['BMI_computed'])
-    merged_bmi['BMI_category'] = pd.cut(merged_bmi['final_bmi'], 
+    merged_bmi['BMI'] = merged_bmi['BMI_existing'].fillna(merged_bmi['BMI_computed'])
+    merged_bmi['BMI_category'] = pd.cut(merged_bmi['BMI'], 
                                         bins=[0, 18.5, 24.9, 29.9, 34.9, 39.9, 100], 
                                         labels=['Underweight', 'Normal', 'Overweight', 'Obesity', 'Severe Obesity', 
                                                 'Morbid Obesity'])
@@ -113,14 +113,14 @@ def combine_with_existing_bmi(df: pd.DataFrame, computed_df: pd.DataFrame) -> pd
     print(f"Calculated BMI: {len(merged_bmi.dropna(subset=['BMI_computed']))} ({merged_bmi.dropna(subset=['BMI_computed']).subject_id.nunique()} subjects)")
     print(f"Extracted BMI: {len(merged_bmi.dropna(subset=['BMI_existing']))} ({merged_bmi.dropna(subset=['BMI_existing']).subject_id.nunique()} subjects)")
     print(f'Total Subjects with BMI: {len(merged_bmi)} ({merged_bmi.subject_id.nunique()} subjects)')
-    return merged_bmi
+    return merged_bmi[['subject_id', 'time', 'BMI', 'BMI_category']]
 
 def filter_bmi_values(df: pd.DataFrame) -> pd.DataFrame:
     """
     Filter out invalid BMI values.
     """
     # Remove physiologically impossible BMI values
-    valid_bmi = df[(df['final_bmi'] >= 10) & (df['final_bmi'] <= 100)]
+    valid_bmi = df[(df['BMI'] >= 10) & (df['BMI'] <= 100)]
     
     # Log filtering results
     filtered_count = len(df) - len(valid_bmi)
@@ -134,11 +134,11 @@ def get_bmi_statistics(df: pd.DataFrame) -> Dict:
     Calculate summary statistics for BMI values.
     """
     stats = {
-        'mean_bmi': df['final_bmi'].mean(),
-        'median_bmi': df['final_bmi'].median(),
-        'std_bmi': df['final_bmi'].std(),
-        'min_bmi': df['final_bmi'].min(),
-        'max_bmi': df['final_bmi'].max(),
+        'mean_bmi': df['BMI'].mean(),
+        'median_bmi': df['BMI'].median(),
+        'std_bmi': df['BMI'].std(),
+        'min_bmi': df['BMI'].min(),
+        'max_bmi': df['BMI'].max(),
         'total_measurements': len(df),
         'unique_subjects': df['subject_id'].nunique()
     }

@@ -1,5 +1,9 @@
 import logging
 import pandas as pd
+import femr.ontology
+
+path_to_athena = "path/to/athena_download"
+ontology = femr.ontology.Ontology(path_to_athena)
 
 class OutcomesProcessor:
     """Process patient outcomes including death and diagnosis."""

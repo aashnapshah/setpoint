@@ -16,7 +16,7 @@ def get_demographics_data(df: pd.DataFrame) -> pd.DataFrame:
     age_df = process_age(df)
     demo_df = pd.concat([demo_df, age_df])
     demo_df = pivot_and_filter_demographics(demo_df)
-    return demo_df
+    return demo_df[['subject_id', 'Gender', 'DOB', 'Race', 'Ethnicity']]
 
 def extract_basic_demographics(df: pd.DataFrame) -> pd.DataFrame:
     """Extract basic demographic information (gender, race, ethnicity)."""
@@ -78,9 +78,15 @@ def get_demographic_summary(demo_df: pd.DataFrame) -> dict:
     """
     Generate summary statistics for demographics.
     """
+    demo_df['DOB'] = pd.to_datetime(demo_df['DOB'])
+    demo_df['Age'] = (pd.Timestamp.today() - demo_df['DOB']).dt.days // 365
+
     summary = {
         'total_subjects': len(demo_df),
+        # Calculate age from DOB
+        # This does not account for the time of day of the visit
         'age_stats': {
+            # calculate age from DOB
             'mean': demo_df['Age'].astype(float).mean(),
             'median': demo_df['Age'].astype(float).median(),
             'std': demo_df['Age'].astype(float).std()
@@ -99,7 +105,7 @@ def validate_demographics(demo_df: pd.DataFrame) -> Tuple[bool, list]:
     issues = []
     
     # Check for missing values
-    required_columns = ['subject_id', 'Gender', 'Age', 'Race', 'Ethnicity']
+    required_columns = ['subject_id', 'Gender', 'DOB', 'Race', 'Ethnicity']
     missing_values = demo_df[required_columns].isnull().sum()
     if missing_values.any():
         issues.append(f"Missing values found: {missing_values[missing_values > 0].to_dict()}")
