@@ -7,13 +7,16 @@ from datetime import datetime
 import os
 import argparse
 
+MIN_GAP = 30
+MIN_TESTS = 5
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Calculate physiological setpoints from CBC data")
     parser.add_argument("--min_gap", type=int, default=30, help="Minimum days between measurements")
     parser.add_argument("--min_tests", type=int, default=5, help="Minimum number of tests required")
     parser.add_argument("--data_dir", type=str, default="data", help="Directory containing CBC data")
-    parser.add_argument("--output_dir", type=str, default="data/setpoint_calculations", help="Output directory")
+    parser.add_argument("--output_dir", type=str, default="results/setpoint_calculations", help="Output directory")
     return parser.parse_args()
 
 def process_dataframe(df):
@@ -101,7 +104,7 @@ def fit_gmm(y):
     # Fall back to basic statistics
     return np.mean(y), np.std(y) / np.mean(y), 'statistical'
 
-def calculate_setpoint(x, y, min_gap, min_tests):
+def calculate_setpoint(x, y, min_gap = MIN_GAP, min_tests = MIN_TESTS):
     """Calculate physiological setpoint from input data."""
     x, y = process_data(x, y)
     x, y = filter_measurements(x, y, min_gap, min_tests)
@@ -114,7 +117,7 @@ def calculate_setpoint(x, y, min_gap, min_tests):
 def main():
     args = parse_args()
     
-    df = pd.read_csv(os.path.join(args.data_dir, 'subject_cbc_events.csv'))
+    df = pd.read_csv(os.path.join(args.data_dir, 'combined_subject_cbc_events.csv'))
 
     # Process each group
     setpoints = []
@@ -146,7 +149,12 @@ def main():
         setpoint_df = pd.DataFrame(setpoints)
         output_file = os.path.join(args.output_dir, f'setpoints_gap:{args.min_gap}_tests:{args.min_tests}.csv')
         setpoint_df.to_csv(output_file, index=False)
-        print(f"\nFound {len(setpoints)} valid setpoints")
+
+        print(f"Original number of subjects: {len(df.subject_id.unique())}")
+        # For each code, print the number of subjects with valid setpoints
+        for code in setpoint_df.code.unique():
+            print(f"Number of subjects with valid setpoints for {code}: {len(setpoint_df[setpoint_df.code == code].subject_id.unique())}")
+        print(f"\nFound valid setpoints for {len(setpoints)} subjects")
         print(f"Results saved to {output_file}")
     
     # Analyze insufficient data cases
@@ -161,7 +169,7 @@ def main():
         print(summary)
         
         # Save insufficient data cases
-        insuff_file = os.path.join(args.output_dir, f'insufficient_gap:{args.min_gap}_tests:{args.min_tests}.csv')
+        insuff_file = os.path.join(f'../logs/insufficient_gap:{args.min_gap}_tests:{args.min_tests}.csv')
         insuff_df.to_csv(insuff_file, index=False)
         print(f"\nInsufficient data cases saved to {insuff_file}")
 

@@ -2,6 +2,7 @@ import logging
 import os
 import pandas as pd
 from typing import Dict, List
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -49,26 +50,64 @@ UNIT_CONVERSIONS = {
     'g/dL': 'g/dL',
     'G/DL': 'g/dL',
     'g/dl': 'g/dL',
+    'g/L': 'g/L',  # Need to divide by 10
+    'G/L': 'g/L',  # Need to divide by 10
+    
+    # Percentage units
     '%': '%',
-    'None': 'None',
+    'percent': '%',
+    
+    # Cell count units (K/uL = 10³/µL)
     'K/uL': 'K/uL',
     'KUL': 'K/uL',
-    'x10E3/uL': 'K/uL',  
-    '10x3/uL': 'K/uL',   
-    'pg': 'pg',
-    'PG': 'pg',
+    'x10E3/uL': 'K/uL',
+    '10x3/uL': 'K/uL',
+    'Thousand/uL': 'K/uL',
+    '10^3/uL': 'K/uL',
+    '1000/uL': 'K/uL',
+    
+    # Volume units (fL)
     'fL': 'fL',
     'FL': 'fL',
     'fl': 'fL',
-    'Thousand/uL': 'K/uL',
-    'Million/uL': 'Million/uL',  
+    
+    # Mass units (pg)
+    'pg': 'pg',
+    'PG': 'pg',
+    
+    # Million per uL units
+    'Million/uL': 'Million/uL',
     'MUL': 'Million/uL',
-    'MIL/uL':'Million/uL',
+    'MIL/uL': 'Million/uL',
     '10*6/uL': 'Million/uL',
     '10x6/uL': 'Million/uL',
     'M/uL': 'Million/uL',
     'x10E6/uL': 'Million/uL',
+    '10^6/uL': 'Million/uL',
 }
+
+# Define standard units and conversion factors for each test
+TEST_UNIT_STANDARDS = {
+    'WBC': {
+        'target_unit': 'K/UL',
+        'conversions': {
+            '/UL': 0.001,      # Convert from absolute count to K/uL
+            'K/UL': 1,         # Already in target unit
+            '10^3/ML': 1,      # Equivalent to K/uL
+            '': 1              # Assume K/uL for missing units
+        }
+    },
+    # Add other tests as needed:
+    'PLT': {
+        'target_unit': 'K/UL',
+        'conversions': {
+            '/UL': 0.001,
+            'K/UL': 1,
+            '10^3/ML': 1
+        }
+    }
+}
+
 
 def get_cbc_data(df: pd.DataFrame, demographic_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -76,6 +115,7 @@ def get_cbc_data(df: pd.DataFrame, demographic_df: pd.DataFrame) -> pd.DataFrame
     """
     cbc_df = extract_tests(df)
     cbc_df = standardize_units(cbc_df)
+    cbc_df = remove_outliers(cbc_df)
     cbc_df = filter_cbc(cbc_df)
     cbc_df = get_in_reference_interval(cbc_df, demographic_df)
     
@@ -98,9 +138,60 @@ def standardize_units(df: pd.DataFrame) -> pd.DataFrame:
     """
     Standardize units for CBC measurements.
     """
-    df['unit'] = df['unit'].replace(UNIT_CONVERSIONS)
-    check_units(df)
+    df = df.copy()
+    
+    # Clean up units column
+    df['unit'] = df['unit'].fillna('').str.strip().str.upper()
+    
+    # Process each test code that has defined standards
+    for test_code, standard in TEST_UNIT_STANDARDS.items():
+        mask = df['code'] == test_code
+        test_df = df[mask]
+        
+        if len(test_df) == 0:
+            continue
+            
+        unique_units = test_df['unit'].unique()
+        if len(unique_units) > 1:
+            logger.info(f"{test_code} has multiple units: {unique_units}")
+            
+            # Apply conversions
+            for unit, factor in standard['conversions'].items():
+                unit_mask = mask & (df['unit'] == unit)
+                df.loc[unit_mask, 'numeric_value'] *= factor
+                df.loc[unit_mask, 'unit'] = standard['target_unit']
+    
     return df
+
+def remove_outliers(df: pd.DataFrame, std_threshold: float = 5) -> pd.DataFrame:
+    """
+    Remove outliers from the dataset.
+    """
+    df = df.copy()
+    
+    # Process each test code separately
+    for code in df['code'].unique():
+        mask = df['code'] == code
+        code_df = df[mask]
+        
+        if len(code_df) == 0:
+            continue
+            
+        # Calculate z-scores for the current test
+        mean = code_df['numeric_value'].mean()
+        std = code_df['numeric_value'].std()
+        z_scores = abs((code_df['numeric_value'] - mean) / std)
+        
+        # Identify outliers
+        outliers_mask = z_scores > std_threshold
+        n_outliers = outliers_mask.sum()
+        
+        if n_outliers > 0:
+            print(f"Removing {n_outliers} outliers from {code} (outside {std_threshold} standard deviations)")
+            df = df[~(mask & outliers_mask)]
+            
+    return df
+
 
 def check_units(df: pd.DataFrame) -> Dict[str, List[str]]:
     """
