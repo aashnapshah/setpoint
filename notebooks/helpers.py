@@ -17,28 +17,8 @@ from data_process import load_dataset
 from processors.cbc import CBC_REFERENCE_INTERVALS
 from processors.outcomes import process_diagnosis
 
-# Plot styling configuration
-PLOT_STYLE = {
-    'figure.dpi': 150,
-    'font.size': 6,
-    'font.family': 'sans-serif',
-    'font.sans-serif': 'Arial',
-    'axes.labelsize': 6,  
-    'legend.fontsize': 6,
-    'axes.titlesize': 6,
-    'xtick.labelsize': 6,
-    'ytick.labelsize': 6,
-    'axes.edgecolor': 'k',
-    'axes.linewidth': 0.5,
-    'axes.grid': False,
-    'axes.prop_cycle': plt.cycler(color=sns.husl_palette(h=.7)),
-    'figure.figsize': (2, 2),
-    'xtick.major.pad': -3,
-    'ytick.major.pad': -3
-}
-
-plt.rcParams.update(PLOT_STYLE)
-sns.set_theme(style="white", font='Arial', rc=PLOT_STYLE)
+seed = 42
+np.random.seed(seed)
 
 def convert_to_datetime(df, unit=None):
     time_cols = [col for col in df.columns if 'time' in col.lower()]
@@ -94,17 +74,30 @@ def merge_setpoints_and_measurements(df, measurements_df, start_time_col='setpoi
 def value_in_reference_interval(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
     def is_in_interval(row):
         interval = CBC_REFERENCE_INTERVALS[row['code']][row['gender']]
+        midpoint = (interval[0] + interval[1]) / 2
         value = row[value_col]
-        return interval[0] <= value <= interval[1]
-    df[f'{value_col}_in_interval'] = df.apply(is_in_interval, axis=1)
+        bool_in_interval = interval[0] <= value <= interval[1]
+        abs_diff = abs(value - midpoint)
+        return bool_in_interval, abs_diff
+    
+    if value_col == 'setpoint':
+        df[f'{value_col}_in_interval'], df[f'diff_{value_col}_reference'] = zip(*df.apply(is_in_interval, axis=1))
+    else:
+        df['within_reference'], df['diff_to_reference'] = zip(*df.apply(is_in_interval, axis=1))
+        df['not_within_reference'] = ~df['within_reference']
     return df
 
 def value_in_setpoint_interval(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
     def is_in_interval(row):
         interval = (row['setpoint'] - row['cv'] * 2, row['setpoint'] + row['cv'] * 2)
+        midpoint = (interval[0] + interval[1]) / 2
         value = row[value_col]
-        return interval[0] <= value <= interval[1]
-    df[f'within_setpoint'] = df.apply(is_in_interval, axis=1)
+        bool_in_interval = interval[0] <= value <= interval[1]
+        abs_diff = abs(value - midpoint)
+        return bool_in_interval, abs_diff
+    
+    df['within_setpoint'], df['diff_to_setpoint'] = zip(*df.apply(is_in_interval, axis=1))
+    df['not_within_setpoint'] = ~df['within_setpoint']
     return df
 
 def normalize_setpoint(df: pd.DataFrame) -> pd.DataFrame:
@@ -119,37 +112,8 @@ def normalize_setpoint(df: pd.DataFrame) -> pd.DataFrame:
     
     return pd.concat(df_list, ignore_index=True)
 
-
-def form_train_test_set(df, min_time_since_setpoint, max_time_since_setpoint):
-    df_ = value_in_setpoint_interval(df, 'numeric_value')
-    df_ = value_in_reference_interval(df_, 'setpoint')
-    df_ = get_time_to_event(df_, 'time')
-    df_ = get_age_at_start(df_, 'time')
-    df_ = get_sex(df_)
-
-    df_['not_within_setpoint'] = ~df_['within_setpoint']
-    df_['not_within_reference'] = ~df_['within_reference']
-    df_['time_since_setpoint'] = (df_['time'] - df_['setpoint_estimation_time']).dt.days
-    df_ = df_[df_['time_since_setpoint'] >= min_time_since_setpoint].sort_values(by='time_since_setpoint')
-    df_ = df_[df_['time_since_setpoint'] <= max_time_since_setpoint].sort_values(by='time_since_setpoint')
-
-    # depending on the group,  lowest (HCT, HGB, MCH, MCV, MCHC, PLT, RBC) or highest (RDW, WBC)
-    #df = df.groupby(['subject_id', 'code']).first().reset_index()
-    # Define the groups for min/max selection
-    min_group = ['HCT', 'HGB', 'MCH', 'MCV', 'MCHC', 'PLT', 'RBC']
-    max_group = ['RDW', 'WBC']
-
-    # For min group, get the row with minimum value for each subject_id and code
-    df_min = df_[df_['code'].isin(min_group)].sort_values('numeric_value').groupby(['subject_id', 'code']).first().reset_index()
-    df_max = df_[df_['code'].isin(max_group)].sort_values('numeric_value', ascending=False).groupby(['subject_id', 'code']).first().reset_index()
-
-    # Combine the results
-    df_ = pd.concat([df_min, df_max])
-    return df_
-
 def split_train_test(df, code):
     df = df[df['code'] == code]
-    # make sure no patient has both a training and a test set and then randomly split the patients into a training and a test set
     patients = df['subject_id'].unique()
     np.random.shuffle(patients)
     split_index = int(len(patients) * 0.8)
@@ -157,44 +121,91 @@ def split_train_test(df, code):
     test_patients = patients[split_index:]
     train_set = df[df['subject_id'].isin(train_patients)]
     test_set = df[df['subject_id'].isin(test_patients)]
-    #train_set = form_train_test_set(train_set)
-    #test_set = form_train_test_set(test_set)
+    #print(f"Code: {code}, Train set size: {len(train_set)}, Test set size: {len(test_set)}")
     return train_set, test_set
 
-def evaluate_cox_model(event_probabilities, code, biomarker, n_bootstrap=1000, alpha=0.95):
+def process_dataframe(dfs, args):
+    min_days = args['min_days']
+    min_test = args['min_test']
+    year_cutoff = args['year_cutoff']
+    min_time = args['min_time']
+    max_time = args['max_time']
+    event_col = args['event_col']
+    setpoints = pd.read_csv(f'../results/setpoint_calculations/setpoints_gap:{min_days}_tests:{min_test}_year:{year_cutoff}.csv')
+    df = (setpoints
+            .merge(dfs['demo_df'], on='subject_id', how='left')
+            .merge(dfs['mortality_df'], on='subject_id', how='left')
+            .merge(dfs['cbc_df'], on=['subject_id', 'code'], how='left')).dropna(subset=['setpoint_estimation_time'])
+    df = convert_to_datetime(df)
+    df = merge_setpoints_and_measurements(df, dfs['measurements_df'], 'time')
+    df = value_in_setpoint_interval(df, 'numeric_value')
+    df = value_in_reference_interval(df, 'numeric_value')
+    df = value_in_reference_interval(df, 'setpoint')
+    df = get_time_to_event(df, start_col='time', end_col=event_col)
+    df = get_age_at_start(df, 'time')
+    df = get_sex(df)
     
+    df['time_since_setpoint'] = (df['time'] - df['setpoint_estimation_time']).dt.days
+    df = df[df['time_since_setpoint'] >= min_time].sort_values(by='time_since_setpoint')
+    df = df[df['time_since_setpoint'] <= max_time].sort_values(by='time_since_setpoint')
+
+    # depending on the group,  lowest (HCT, HGB, MCH, MCV, MCHC, PLT, RBC) or highest (RDW, WBC)
+    min_group = ['HCT', 'HGB', 'MCH', 'MCV', 'MCHC', 'PLT', 'RBC']
+    max_group = ['RDW', 'WBC']
+
+    # For min group, get the row with minimum value for each subject_id and code
+    df_min = df[df['code'].isin(min_group)].sort_values('numeric_value').groupby(['subject_id', 'code']).first().reset_index()
+    df_max = df[df['code'].isin(max_group)].sort_values('numeric_value', ascending=False).groupby(['subject_id', 'code']).first().reset_index()
+    df = pd.concat([df_min, df_max])
+    return df 
+
+def evaluate_cox_model(event_probabilities, code, biomarker, n_bootstrap=1000, alpha=0.95):
+    """
+    Calculate concordance index with bootstrap confidence intervals for each prediction time.
+    """
     results = []
     for (time, biomarker), group in event_probabilities.groupby(["prediction_time", "biomarker"]):
         # Calculate concordance on full dataset
-        c_index = concordance_index(
-            group["time_to_event"],
-            1-group["event_probability"],
-            group["event_status"]
-        )
+        try:
+            c_index = concordance_index(
+                group["time_to_event"],
+                1-group["event_probability"],
+                group["event_status"]
+            )
+        except ZeroDivisionError:
+            print(f"Warning: No admissible pairs for {time} year prediction, {biomarker}")
+            c_index = np.nan
         
         # Bootstrap
         bootstrap_samples = []
-        n_bootstrap = int(n_bootstrap)  # Convert to integer
+        n_bootstrap = int(n_bootstrap)
         for _ in range(n_bootstrap):
             # Sample with replacement
             boot_group = group.sample(n=len(group), replace=True)
-            boot_c_index = concordance_index(
-                boot_group["time_to_event"],
-                1-boot_group["event_probability"],
-                boot_group["event_status"]
-            )
-            bootstrap_samples.append(boot_c_index)
+            try:
+                boot_c_index = concordance_index(
+                    boot_group["time_to_event"],
+                    1-boot_group["event_probability"],
+                    boot_group["event_status"]
+                )
+                bootstrap_samples.append(boot_c_index)
+            except ZeroDivisionError:
+                continue
         
-        # Calculate confidence intervals
-        ci_lower, ci_upper = np.percentile(bootstrap_samples, 
-                                            [(1 - alpha) * 100/2, 
-                                            (1 + alpha) * 100/2])
+        # Calculate confidence intervals only if we have valid bootstrap samples
+        if bootstrap_samples:
+            ci_lower, ci_upper = np.percentile(bootstrap_samples, 
+                                             [(1 - alpha) * 100/2, 
+                                              (1 + alpha) * 100/2])
+            ci_mean = np.mean(bootstrap_samples)
+        else:
+            ci_mean, ci_lower, ci_upper = np.nan, np.nan, np.nan
         
         results.append({
             "biomarker": biomarker,
             "code": code,
             "prediction_time": time,
-            "c_index": c_index,
+            "c_index": ci_mean,
             "ci_lower": ci_lower,
             "ci_upper": ci_upper
         })
@@ -202,7 +213,7 @@ def evaluate_cox_model(event_probabilities, code, biomarker, n_bootstrap=1000, a
     results = pd.DataFrame(results)
     return results
 
-def run_cox_model(df, code, biomarker='setpoint', covariates=[], use_train_test=False, time_points=[3, 5, 10]):
+def run_cox_model(df, code, biomarker='setpoint', covariates=[], split=False, time_points=[3, 5, 10], n_bootstrap=1000):
     features = [biomarker] + covariates + ['time_to_event', 'event_status']
     results = {
         "Code": code,
@@ -210,7 +221,7 @@ def run_cox_model(df, code, biomarker='setpoint', covariates=[], use_train_test=
         "N": len(df)
     }
     
-    if use_train_test:
+    if split:
         # Use the existing split_train_test function
         train_df, test_df = split_train_test(df, code)
         cph = CoxPHFitter()
@@ -226,9 +237,11 @@ def run_cox_model(df, code, biomarker='setpoint', covariates=[], use_train_test=
             "UPPER CI": summary.loc[biomarker, 'exp(coef) upper 95%'],
             "p-value": summary.loc[biomarker, "p"],
             "train_concordance": cph.score(train_df[features], scoring_method="concordance_index"),
-            "test_concordance": cph.score(test_df[features], scoring_method="concordance_index"),
+            #"test_concordance": cph.score(test_df[features], scoring_method="concordance_index"),
             "N_train": len(train_df),
-            "N_test": len(test_df)
+            "N_test": len(test_df),
+            "positive_train": len(train_df[train_df['event_status'] == 1]),
+            "positive_test": len(test_df[test_df['event_status'] == 1]),
             # "1year_pred_cstat": c_index_df.loc[biomarker, '1y_pred_cstat'],
             # "3year_pred_cstat": c_index_df.loc[biomarker, '3y_pred_cstat'],
             # "5year_pred_cstat": c_index_df.loc[biomarker, '5y_pred_cstat'],
@@ -236,10 +249,11 @@ def run_cox_model(df, code, biomarker='setpoint', covariates=[], use_train_test=
         })
         
         event_probabilities = get_event_probabilities(cph, test_df, time_points, biomarker)
-        metrics = evaluate_cox_model(event_probabilities, code, biomarker)
+        metrics = evaluate_cox_model(event_probabilities, code, biomarker, n_bootstrap)
         
     else:
         # Original behavior without train/test split
+        metrics = None
         cph = CoxPHFitter()
         cph.fit(df[features], duration_col='time_to_event', event_col='event_status')
         hr = cph.hazard_ratios_
@@ -266,44 +280,8 @@ def get_event_probabilities(cph, df, time_points, biomarker):
 
     return df_event_probabilities
 
-def plot_setpoint_hr(results, title):
-    # Create the scatter plot
-    results = results.sort_values(by='Code')
-    results['Biomarker'] = results['Biomarker'].str.split('_').str[0].str.capitalize()
-    results['Code'] = results['Code'] + ' (N=' + results['N'].astype(str) + ')'
-    fig, ax = plt.subplots(1, 2, sharey=True, figsize=(4, 2))
-    # want to plot the HR for setpoint on the left and the HR for cv on the right
-    results_setpoint = results[results['Biomarker'] == 'Setpoint']
-    results_cv = results[results['Biomarker'] == 'Cv']
-    
-    sns.scatterplot(data=results_setpoint, x='HR', y='Code', ax=ax[0])
-    sns.scatterplot(data=results_cv, x='HR', y='Code', ax=ax[1])
-    
-    ax[0].errorbar(x=results_setpoint['HR'], y=range(len(results_setpoint)), 
-                xerr=[results_setpoint['HR'] - results_setpoint['LOWER CI'], 
-                    results_setpoint['UPPER CI'] - results_setpoint['HR']],
-                fmt='none', c='gray', alpha=0.5, capsize=3)
-    ax[0].set_xlabel('HR')
-    ax[0].set_ylabel('')
-    ax[0].set_title('Setpoint')
-    ax[0].axvline(x=1, color='gray', linestyle='--', alpha=0.5, linewidth=0.5)
-    ax[0].set_xlim(-0.1, 2.2)
-    
-    ax[1].errorbar(x=results_cv['HR'], y=range(len(results_cv)), 
-                xerr=[results_cv['HR'] - results_cv['LOWER CI'], 
-                    results_cv['UPPER CI'] - results_cv['HR']],
-                fmt='none', c='gray', alpha=0.5, capsize=3)
-    ax[1].set_xlabel('HR')
-    ax[1].set_ylabel('')
-    ax[1].set_title('CV')
-    ax[1].axvline(x=1, color='gray', linestyle='--', alpha=0.5, linewidth=0.5)
-    ax[1].set_xlim(0.8, 1.4)
-    
-    plt.suptitle(title, fontsize=6)
-    plt.tight_layout()
-    return plt
 
-def run_cox_analysis(df, min_days, min_test, year_cutoff, features=[], use_train_test=False):
+def run_cox_analysis(df, min_days, min_test, year_cutoff, features=[], split=False):
       df = convert_to_datetime(df)
       df = get_time_to_event(df, 'setpoint_estimation_time') 
       df = get_age_at_start(df, 'setpoint_estimation_time')
@@ -320,15 +298,15 @@ def run_cox_analysis(df, min_days, min_test, year_cutoff, features=[], use_train
             df_sub = df[df['code'] == code]
             df_sub_reference = df_sub[df_sub['setpoint_in_interval'] == True]
             if len(df_sub) > 0 and code != 'WBC':
-                  results_setpoint, metrics_setpoint = run_cox_model(df_sub, code, biomarker='setpoint_normalized', covariates=features, use_train_test=use_train_test)
-                  results_cv, metrics_cv = run_cox_model(df_sub, code, biomarker='cv_normalized', covariates=features, use_train_test=use_train_test)
+                  results_setpoint, metrics_setpoint = run_cox_model(df_sub, code, biomarker='setpoint_normalized', covariates=features, split=split)
+                  results_cv, metrics_cv = run_cox_model(df_sub, code, biomarker='cv_normalized', covariates=features, split=split)
                   results.append(results_setpoint)
                   results.append(results_cv)
                   metrics.extend(metrics_setpoint)
                   metrics.extend(metrics_cv)
                   
-                  results_setpoint_reference, metrics_setpoint_reference = run_cox_model(df_sub_reference, code, biomarker='setpoint_normalized', covariates=features, use_train_test=use_train_test)
-                  results_cv_reference, metrics_cv_reference = run_cox_model(df_sub_reference, code, biomarker='cv_normalized', covariates=features, use_train_test=use_train_test)
+                  results_setpoint_reference, metrics_setpoint_reference = run_cox_model(df_sub_reference, code, biomarker='setpoint_normalized', covariates=features, split=split)
+                  results_cv_reference, metrics_cv_reference = run_cox_model(df_sub_reference, code, biomarker='cv_normalized', covariates=features, split=split)
                   results_reference.append(results_setpoint_reference)
                   results_reference.append(results_cv_reference)
                   metrics_reference.extend(metrics_setpoint_reference)
@@ -339,29 +317,7 @@ def run_cox_analysis(df, min_days, min_test, year_cutoff, features=[], use_train
       
       return results_df, results_reference_df
 
-def run_interval_cox_analysis(df, min_time_since_setpoint, max_time_since_setpoint, features=[], use_train_test=False, setpoint_in_interval=False):
-    df = value_in_setpoint_interval(df, 'numeric_value')
-    df = value_in_reference_interval(df, 'setpoint')
-    df = get_time_to_event(df, 'time')
-    df = get_age_at_start(df, 'time')
-    df = get_sex(df)
-
-    df['not_within_setpoint'] = ~df['within_setpoint']
-    df['not_within_reference'] = ~df['within_reference']
-    df['time_since_setpoint'] = (df['time'] - df['setpoint_estimation_time']).dt.days
-    df = df[df['time_since_setpoint'] >= min_time_since_setpoint].sort_values(by='time_since_setpoint')
-    df = df[df['time_since_setpoint'] <= max_time_since_setpoint].sort_values(by='time_since_setpoint')
-
-    # depending on the group,  lowest (HCT, HGB, MCH, MCV, MCHC, PLT, RBC) or highest (RDW, WBC)
-    min_group = ['HCT', 'HGB', 'MCH', 'MCV', 'MCHC', 'PLT', 'RBC']
-    max_group = ['RDW', 'WBC']
-
-    # For min group, get the row with minimum value for each subject_id and code
-    df_min = df[df['code'].isin(min_group)].sort_values('numeric_value').groupby(['subject_id', 'code']).first().reset_index()
-    df_max = df[df['code'].isin(max_group)].sort_values('numeric_value', ascending=False).groupby(['subject_id', 'code']).first().reset_index()
-
-    # Combine the results
-    df = pd.concat([df_min, df_max])
+def run_interval_cox_analysis(df, biomarker_type='bool', features=[], split=False, setpoint_in_interval=False, n_bootstrap=1000):
 
     features = ['gender_int', 'age_at_start'] + features
     results = []
@@ -371,67 +327,23 @@ def run_interval_cox_analysis(df, min_time_since_setpoint, max_time_since_setpoi
         if setpoint_in_interval:
             df_sub = df_sub[df_sub['setpoint_in_interval'] == True]
         if len(df_sub) > 0 and code != 'WBC':
-            results_not_within_setpoint, metrics_not_within_setpoint = run_cox_model(df_sub, code, biomarker='not_within_setpoint', covariates=features, use_train_test=use_train_test)            
-            results_not_within_reference, metrics_not_within_reference = run_cox_model(df_sub, code, biomarker='not_within_reference', covariates=features, use_train_test=use_train_test)
-            
+            if biomarker_type == 'bool':
+                results_not_within_setpoint, metrics_not_within_setpoint = run_cox_model(df_sub, code, biomarker='not_within_setpoint', covariates=features, split=split, n_bootstrap=n_bootstrap)            
+                results_not_within_reference, metrics_not_within_reference = run_cox_model(df_sub, code, biomarker='not_within_reference', covariates=features, split=split, n_bootstrap=n_bootstrap)
+            elif biomarker_type == 'numeric':
+                results_not_within_setpoint, metrics_not_within_setpoint = run_cox_model(df_sub, code, biomarker='diff_to_setpoint', covariates=features, split=split, n_bootstrap=n_bootstrap)            
+                results_not_within_reference, metrics_not_within_reference = run_cox_model(df_sub, code, biomarker='diff_to_reference', covariates=features, split=split, n_bootstrap=n_bootstrap)
+            else:
+                raise ValueError(f"Invalid biomarker type: {biomarker_type}")
             results.append(results_not_within_setpoint)
             results.append(results_not_within_reference)
             metrics_df = pd.concat([metrics_df, metrics_not_within_setpoint])
             metrics_df = pd.concat([metrics_df, metrics_not_within_reference])
         
     results_df = pd.DataFrame(results)
-    metrics_df = metrics_df #[['Code', 'Biomarker', 'prediction_time', 'c_index']]
+    metrics_df = metrics_df 
     return results_df, metrics_df 
 
-def plot_interval_hr(results, title):
-    # make a deep copy of the results dataframe
-    results = results.copy(deep=True)
-    results['Biomarker'] = results['Biomarker'].str.split('_').str[2].str.capitalize()
-    
-    plt.figure(figsize=(4, 3))
-    palette = sns.husl_palette(h=.7)
-    colors = {'Setpoint': 'orange', 'Reference': palette[0]}
-    sns.scatterplot(
-        data=results, 
-        x='HR', 
-        y='Code', 
-        hue='Biomarker',
-        palette=colors,
-        s=50,  
-        alpha=0.7
-    )
-
-    for i, type_name in enumerate(results['Biomarker'].unique()):
-        type_df = results[results['Biomarker'] == type_name]
-        plt.errorbar(
-            x=type_df['HR'], 
-            y=type_df.Code,
-            xerr=[type_df['HR'] - type_df['LOWER CI'], 
-                type_df['UPPER CI'] - type_df['HR']],
-            fmt='none', 
-            c=colors[type_name],
-            alpha=0.3,
-            capsize=3,
-            capthick=1,
-            elinewidth=1
-        )
-
-    plt.axvline(x=1, color='gray', linestyle='--', alpha=0.5, linewidth=0.5)
-    plt.xlabel('Hazard Ratio (95% CI)', fontsize=8)
-    plt.ylabel('CBC Measure', fontsize=8)
-
-    plt.legend(
-        #title=title,
-        title_fontsize=8,
-        fontsize=7,
-        bbox_to_anchor=(1.05, 1),
-        loc='upper left'
-    )
-    plt.title(title)
-    plt.tight_layout()
-    plt.xticks(fontsize=7)
-    plt.yticks(fontsize=7)
-    plt.show()
     
 def merge_diagnosis_with_setpoints(df, diag_df, start_time_col='setpoint_estimation_time'):
     # First check and fix any duplicate columns
@@ -456,68 +368,3 @@ def merge_diagnosis_with_setpoints(df, diag_df, start_time_col='setpoint_estimat
     df = df.drop(columns=['diagnosis_time'])
     
     return df
-
-def plot_interval_concordance(results, title):
-    # Create subplots for each prediction time
-    prediction_times = results['prediction_time'].unique()
-
-    fig, axes = plt.subplots(1, len(prediction_times), figsize=(15, 3), sharey=True, sharex=True)
-    axes = axes.ravel()
-    
-    # Plot for each prediction time
-    for idx, time in enumerate(prediction_times):
-        time_data = results[results['prediction_time'] == time]
-        time_data['Biomarker'] = time_data['biomarker'].str.split('_').str[2].str.capitalize()
-        
-        palette = sns.husl_palette(h=.7)
-        colors = {'Setpoint': 'orange', 'Reference': palette[0]}
-        
-        # Create scatter plot
-        sns.scatterplot(
-            data=time_data, 
-            x='c_index', 
-            y='code', 
-            hue='Biomarker',
-            palette=colors,
-            s=50,  
-            alpha=0.7,
-            ax=axes[idx]
-        )
-
-        # Add error bars for each biomarker
-        for i, type_name in enumerate(time_data['Biomarker'].unique()):
-            type_df = time_data[time_data['Biomarker'] == type_name]
-            axes[idx].errorbar(
-                x=type_df['c_index'], 
-                y=type_df.code,
-                xerr=[type_df['c_index'] - type_df['ci_lower'], 
-                    type_df['ci_upper'] - type_df['c_index']],
-                fmt='none', 
-                c=colors[type_name],
-                alpha=0.3,
-                capsize=3,
-                capthick=1,
-                elinewidth=1
-            )
-
-        axes[idx].set_xlabel('Concordance Index (95% CI)', fontsize=8)
-        axes[idx].set_ylabel('CBC Measure', fontsize=8)
-        axes[idx].set_title(f'{time} Year Prediction')
-        
-        # Remove individual legends except for the last subplot
-        if idx < 3:
-            axes[idx].get_legend().remove()
-        
-        axes[idx].tick_params(axis='both', labelsize=7)
-
-    # Adjust the legend position for the last subplot
-    axes[-1].legend(
-        title=title,
-        title_fontsize=8,
-        fontsize=7,
-        bbox_to_anchor=(1.05, 1),
-        loc='upper left'
-    )
-
-    plt.tight_layout()
-    return fig, axes
