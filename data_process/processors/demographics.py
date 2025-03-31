@@ -1,78 +1,150 @@
+import os
 import logging
 import pandas as pd
 from datetime import datetime
-from typing import Set, Tuple, Dict
+from typing import Set, Tuple, Dict, List
 
 logger = logging.getLogger(__name__)
 
-DEMOGRAPHIC_FIELDS = ['Ethnicity', 'Gender', 'Race']
+DEMOGRAPHIC_FIELDS = ['subject_id', 'gender', 'dob', 'race', 'ethnicity']
 AGE_RANGE = {'min': 18, 'max': 89}
+RACE_MAP = {
+    '1': 'American Indian or Alaska Native',
+    '2': 'Asian',
+    '3': 'Black or African American',
+    '4': 'Native Hawaiian or Other Pacific Islander',
+    '5': 'White'
+}
 
-def get_demographics_data(df: pd.DataFrame) -> pd.DataFrame:
+GENDER_MAP = {
+    'M': 'Male',
+    'F': 'Female'
+}
+
+def process_demographics(df: pd.DataFrame, path: str) -> pd.DataFrame:
     """
     Extract and filter demographic data.
     """    
-    demo_df = extract_basic_demographics(df)
-    age_df = process_age(df)
-    demo_df = pd.concat([demo_df, age_df])
-    demo_df = pivot_and_filter_demographics(demo_df)
-    return demo_df[['subject_id', 'Gender', 'DOB', 'Race', 'Ethnicity']]
+    demo_df = get_demographics(df)
+    dob_df = get_dob(df)
+    demo_df = pivot_and_filter_demographics([demo_df, dob_df])
+    observation_period_df = get_observation_period(df, path)
+    
+    demo_df = demo_df.merge(observation_period_df, on='subject_id', how='left')
+    
+    return demo_df
 
-def extract_basic_demographics(df: pd.DataFrame) -> pd.DataFrame:
+def get_demographics(df: pd.DataFrame) -> pd.DataFrame:
     """Extract basic demographic information (gender, race, ethnicity)."""
     demo_df = df[df['table'] == 'person'][['subject_id', 'code', 'time']]
     demo_df['text_value'] = demo_df['code'].str.split('/').str[1]
-    demo_df['code'] = demo_df['code'].str.split('/').str[0]
+    demo_df['code'] = demo_df['code'].str.split('/').str[0].str.lower()
     demo_df = demo_df[demo_df['code'].isin(DEMOGRAPHIC_FIELDS)]
-    logger.info(f"Extracted basic demographics for {demo_df['subject_id'].nunique()} subjects")
     return demo_df
 
+def clean_demographics(df: pd.DataFrame) -> pd.DataFrame:
+    race_mask = df['code'] == 'race'
+    df.loc[race_mask, 'text_value'] = df.loc[race_mask, 'text_value'].map(RACE_MAP)
+    
+    sex_mask = df['code'] == 'gender'
+    df.loc[sex_mask, 'text_value'] = df.loc[sex_mask, 'text_value'].map(GENDER_MAP)
+    return df
+
 # AGE NEEDS TO BE FIXED ->  THERE SHOULD BE AN AGE FOR EACH VISIT / TIME POINT
-def process_age(df: pd.DataFrame) -> pd.DataFrame:
+def get_dob(df: pd.DataFrame) -> pd.DataFrame:
     """
     Process age information from birth dates.
     """
     age_df = df[df['code'] == 'MEDS_BIRTH'][['subject_id', 'code', 'time']]
-    age_df['code'] = 'DOB'    #age_df['Age (Today)'] = (pd.Timestamp.today() - pd.to_datetime(age_df['time'])).dt.days // 365
+    age_df['code'] = 'dob'    #age_df['Age (Today)'] = (pd.Timestamp.today() - pd.to_datetime(age_df['time'])).dt.days // 365
     age_df['text_value'] = age_df['time']
-    return age_df
+    return age_df[['subject_id', 'code', 'text_value']]
 
-def calculate_age(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculate age from birth date.
-    """
-    df['time'] = pd.to_datetime(df['time'])
-    df['DOB'] = pd.to_datetime(df['dob'])
-    df['Age'] = (df['time'] - df['dob']).dt.days // 365
-    return df
-
-def pivot_and_filter_demographics(demo_df: pd.DataFrame) -> pd.DataFrame:
+# give a list of dataframes and return a single dataframe
+def pivot_and_filter_demographics(dfs: List[pd.DataFrame]) -> pd.DataFrame:
     """
     Pivot demographics into wide format and filter by age range.
     """
+    demo_df = pd.concat(dfs)
     demo_df = (demo_df.pivot(index='subject_id', 
                             columns='code', 
                             values='text_value')
                      .reset_index()
-                     .dropna(subset=['Gender', 'DOB', 'Race', 'Ethnicity']))
+                     .dropna(subset=DEMOGRAPHIC_FIELDS))
     
-    #demo_df = demo_df[(demo_df['Age'].astype(float) >= AGE_RANGE['min']) & 
-    #                  (demo_df['Age'].astype(float) <= AGE_RANGE['max'])]
-    
-    logger.info(f"After filtering: {len(demo_df)} subjects remain")
-    return demo_df
-
-def get_care_site_summary(df: pd.DataFrame) -> dict:
-    """
-    Generate care sites.
-    """
-    pass
+    return demo_df[DEMOGRAPHIC_FIELDS]
 
 def get_zip_code(df: pd.DataFrame) -> dict:
     """
     Generate zip code summary statistics.
     """
     pass
+
+def get_observation_period(raw_df: pd.DataFrame, path: str) -> pd.DataFrame:
+    """
+    Get observation period, preferring EHR_record observation dates over the observation_period table.
+    """
+    fallback_dates = (pd.read_csv(os.path.join(path, "tables/observation_period.csv"))
+                     .rename(columns={'person_id': 'subject_id'}))
+    
+    # Filter raw data for record observations
+    filtered_df = raw_df[
+        (raw_df['table'] != 'death') & 
+        (raw_df['visit_id'].notna()) &
+        (raw_df['provider_id'].notna()) &
+        (raw_df['table'] != 'person') & 
+        (~raw_df['time'].isna()) 
+    ]
+    
+    # Get record first and last observations
+    record_dates = (filtered_df.groupby('subject_id')
+                    .agg(
+                        record_start=('time', 'min'),
+                        record_end=('time', 'max')
+                    )
+                    .reset_index())
+    print(record_dates.head())
+    
+    observation_period_df = fallback_dates.merge(record_dates, on='subject_id', how='outer')
+    print(observation_period_df.head())
+    
+    date_columns = ['observation_period_start_DATE', 'observation_period_end_DATE', 'record_start', 'record_end']
+    for col in date_columns:
+        observation_period_df[col] = pd.to_datetime(observation_period_df[col]).dt.date
+    
+    start_fallbacks = observation_period_df['observation_period_start_DATE'].isna().sum()
+    end_fallbacks = observation_period_df['observation_period_end_DATE'].isna().sum()
+    
+    # Calculate differences where we have both dates
+    start_diff = (pd.to_datetime(observation_period_df['record_start']) - pd.to_datetime(observation_period_df['observation_period_start_DATE'])).dt.days
+    end_diff = (pd.to_datetime(observation_period_df['record_end']) - pd.to_datetime(observation_period_df['observation_period_end_DATE'])).dt.days
+    
+    print(f"\nObservation Period Statistics:")
+    print(f"Using fallback start dates for {start_fallbacks} subjects ({start_fallbacks/len(observation_period_df)*100:.1f}%)")
+    print(f"Using fallback end dates for {end_fallbacks} subjects ({end_fallbacks/len(observation_period_df)*100:.1f}%)")
+    print("\nDifferences between record and fallback dates (in days):")
+    print(f"Start date difference (record - fallback): mean={start_diff.mean():.1f}, median={start_diff.median():.1f}")
+    print(f"End date difference (record - fallback): mean={end_diff.mean():.1f}, median={end_diff.median():.1f}")
+    
+    # Prefer fallback dates over record dates
+    observation_period_df['observation_period_start_time'] = (
+        observation_period_df['observation_period_start_DATE'].fillna(
+            observation_period_df['record_start']
+        )
+    )
+    observation_period_df['observation_period_end_time'] = (
+        observation_period_df['observation_period_end_DATE'].fillna(
+            observation_period_df['record_end']
+        )
+    )
+    
+    observation_period_df = observation_period_df[[
+        'subject_id', 
+        'observation_period_start_time', 
+        'observation_period_end_time'
+    ]]
+    
+    return observation_period_df
 
 def get_demographic_summary(df: pd.DataFrame) -> Dict:
     """
@@ -93,7 +165,6 @@ def get_demographic_summary(df: pd.DataFrame) -> Dict:
         }
     }
     
-    # Sex distribution
     sex_counts = df['Gender'].value_counts()
     sex_stats = {
         'Sex': {
@@ -111,7 +182,6 @@ def get_demographic_summary(df: pd.DataFrame) -> Dict:
         }
     }
     
-    # Ethnicity distribution
     ethnicity_counts = df['Ethnicity'].value_counts()
     ethnicity_stats = {
         'Ethnicity': {
@@ -120,14 +190,12 @@ def get_demographic_summary(df: pd.DataFrame) -> Dict:
         }
     }
     
-    # Total subjects
     summary_stats = {
         'Total Events': f"{len(df):,d}",
         'Total Unique Subjects': f"{df['subject_id'].nunique():,d}",
         'Average Events per Subject': f"{len(df) / df['subject_id'].nunique():.1f}"
     }
     
-    # Combine all statistics
     summary = {
         **summary_stats,
         **age_stats,
@@ -169,19 +237,5 @@ def print_demographic_summary(summary: Dict):
     print("---------------------")
     for ethnicity, value in summary['Ethnicity'].items():
         print(f"{ethnicity}: {value}")
-
-def validate_demographics(demo_df: pd.DataFrame) -> Tuple[bool, list]:
-    """
-    Validate demographic data for common issues.
-    """
-    issues = []
-    
-    # Check for missing values
-    required_columns = ['subject_id', 'Gender', 'DOB', 'Race', 'Ethnicity']
-    missing_values = demo_df[required_columns].isnull().sum()
-    if missing_values.any():
-        issues.append(f"Missing values found: {missing_values[missing_values > 0].to_dict()}")
-    
-    return len(issues) == 0, issues 
 
 

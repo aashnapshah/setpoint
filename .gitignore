@@ -1,2 +1,17 @@
 data/
 .*_*
+*.pth
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.feather
+*.pickle
+*.pkl
+*pycache*
+*.DS_Store
+*.ipynb_checkpoints
+*.ipynb
+*.ipynb_checkpoints
+*.ipynb_checkpoints
+*.ipynb_checkpoints

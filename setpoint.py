@@ -7,14 +7,12 @@ from datetime import datetime
 import os
 import argparse
 
-MIN_GAP = 30
-MIN_TESTS = 5
-
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Calculate physiological setpoints from CBC data")
     parser.add_argument("--min_gap", type=int, default=30, help="Minimum days between measurements")
     parser.add_argument("--min_tests", type=int, default=5, help="Minimum number of tests required")
+    parser.add_argument("--year_cutoff", type=int, default='2025', help="Only include data from before this year")
     parser.add_argument("--data_dir", type=str, default="data", help="Directory containing CBC data")
     parser.add_argument("--output_dir", type=str, default="results/setpoint_calculations", help="Output directory")
     return parser.parse_args()
@@ -23,36 +21,46 @@ def process_dataframe(df):
     """Process DataFrame with time and numeric_value columns."""
     x = df['time'].values.astype(np.datetime64)
     y = df['numeric_value'].values
-    return x, y
+    x, y, time = process_data(x, y)
+    return x, y, time
 
 def process_data(x, y):
     """Process raw time series data."""
-    # Convert inputs to numpy arrays
+    # Convert inputs to numpy arrays and sort chronologically
     x = np.array(x)
     y = np.array(y)
+    time = x.copy()  
     
-    # Sort chronologically
     sorted_idx = np.argsort(x.flatten())
     x = x[sorted_idx]
     y = y[sorted_idx]
+    time = time[sorted_idx]
     
     # Convert datetime to numeric days
     if isinstance(x[0], (np.datetime64, datetime)):
         x = (x - x[0]).astype('timedelta64[D]').astype(int)
     
-    # Clean data
+    # Clean data and remove NaN values
     valid_idx = ~np.isnan(y)
     x = x[valid_idx].reshape(-1, 1)
     y = y[valid_idx].reshape(-1, 1)
+    time = time[valid_idx]
     
     # Remove duplicates
     unique_x, unique_idx = np.unique(x, return_index=True)
-    return unique_x.reshape(-1, 1), y[unique_idx]
+    return unique_x.reshape(-1, 1), y[unique_idx], time[unique_idx]
 
-def filter_measurements(x, y, min_gap, min_tests):
+def filter_measurements(x, y, time, min_gap, min_tests, year_cutoff):
     """Filter measurements by time gap and minimum tests."""
+    
+    year_cutoff = np.datetime64(f'{year_cutoff}-01-01')
+    valid_idx = time < year_cutoff
+    x = x[valid_idx]
+    y = y[valid_idx]
+    time = time[valid_idx]
+
     if len(x) < min_tests:
-        return None, None
+        return None, None, None
         
     # Filter by minimum time gap
     nearest_marker = np.array([
@@ -60,13 +68,20 @@ def filter_measurements(x, y, min_gap, min_tests):
         for i in range(len(x))
     ])
     valid_idx = nearest_marker > min_gap
-    x = x[valid_idx]
-    y = y[valid_idx]
     
-    return (x, y) if len(x) >= min_tests else (None, None)
+    if sum(valid_idx) < min_tests:
+        return None, None, None
+        
+    return x[valid_idx], y[valid_idx], time[valid_idx]
 
-def fit_gmm(y):
-    """Fit GMM models and select best fit."""
+def calculate_setpoint(y):
+    """
+    Fit GMM models and select best fit using AIC.
+    
+    1. Fits 1-3 Gaussian components
+    2. Selects best model using AIC
+    3. Returns mean of largest component as setpoint
+    """
     y = y.reshape(-1, 1)
     
     # Common GMM parameters
@@ -77,78 +92,97 @@ def fit_gmm(y):
         'init_params': 'kmeans'
     }
     
-    # Try 2-component GMM
-    gmm = GaussianMixture(n_components=2, **gmm_params).fit(y)
+    # Check if we have enough unique values
+    unique_values = np.unique(y)
+    if len(unique_values) < 3:
+        return np.mean(y), calculate_cv(y), np.std(y), 'statistical'
     
-    # Check if 2-component model is good
-    if gmm.converged_ and np.max(gmm.weights_) > 0.7:
-        max_idx = np.argmax(gmm.weights_)
-        return (
-            gmm.means_[max_idx][0],
-            np.sqrt(gmm.covariances_[max_idx][0][0]) / gmm.means_[max_idx][0],
-            'gmm'
-        )
+    try:
+        # Fit models with 1-3 components
+        models = []
+        aics = []
+        
+        for n_components in range(1, 4):
+            gmm = GaussianMixture(n_components=n_components, **gmm_params)
+            gmm.fit(y)
+            
+            if gmm.converged_:
+                # Calculate AIC: -2 * log-likelihood + 2 * n_parameters
+                # For GMM, n_parameters = n_components * (mean + variance) + (n_components - 1) weights
+                n_parameters = n_components * 2 + (n_components - 1)
+                aic = -2 * gmm.score(y) * len(y) + 2 * n_parameters
+                
+                models.append(gmm)
+                aics.append(aic)
+            else:
+                models.append(None)
+                aics.append(np.inf)
+        
+        # Select best model (lowest AIC)
+        if len(models) > 0 and min(aics) != np.inf:
+            best_model_idx = np.argmin(aics)
+            best_model = models[best_model_idx]
+            
+            # Get the largest component
+            max_idx = np.argmax(best_model.weights_)
+            
+            return (
+                best_model.means_[max_idx][0],
+                calculate_cv(y[best_model.predict(y) == max_idx]),
+                np.std(y[best_model.predict(y) == max_idx]),
+                f'gmm_{best_model_idx + 1}_components'
+            )
+            
+    except Exception as e:
+        print(f"Warning: GMM fitting failed with error: {str(e)}. Falling back to statistical method.")
     
-    # Try 3-component GMM
-    gmm = GaussianMixture(n_components=3, **gmm_params).fit(y)
-    
-    # Check if 3-component model is good
-    if gmm.converged_ and np.max(gmm.weights_) > 0.45:
-        max_idx = np.argmax(gmm.weights_)
-        return (
-            gmm.means_[max_idx][0],
-            np.sqrt(gmm.covariances_[max_idx][0][0]) / gmm.means_[max_idx][0],
-            'gmm'
-        )
-    
-    # Fall back to basic statistics
-    return np.mean(y), np.std(y) / np.mean(y), 'statistical'
+    # Fall back to basic statistics if GMM fails
+    return np.mean(y), calculate_cv(y), 'statistical'
 
-def calculate_setpoint(x, y, min_gap = MIN_GAP, min_tests = MIN_TESTS):
-    """Calculate physiological setpoint from input data."""
-    x, y = process_data(x, y)
-    x, y = filter_measurements(x, y, min_gap, min_tests)
-    if x is None:
-        return np.nan, np.nan, "insufficient_data"
-    
-    return fit_gmm(y)
-
+def calculate_cv(data):
+    mean = np.mean(data)
+    std = np.std(data)
+    cv = (std / mean) * 100  # Convert to percentage
+    return cv
 
 def main():
     args = parse_args()
     
     df = pd.read_csv(os.path.join(args.data_dir, 'combined_subject_cbc_events.csv'))
-
-    # Process each group
-    setpoints = []
-    insufficient_data = []
     
+    # Process each group
+    setpoints = []    
     for (subject, code), group in df.groupby(['subject_id', 'code']):
-        if not group.empty:
-            x, y = process_dataframe(group)
-            setpoint, uncertainty, model = calculate_setpoint(x, y, args.min_gap, args.min_tests)
+        if group.empty:
+            continue
             
-            if model == "insufficient_data":
-                insufficient_data.append({
-                    'subject_id': subject,
-                    'code': code,
-                    'n_measurements': len(group)
-                })
-                print(f"Insufficient data for subject {subject}, code {code} ({len(group)} measurements)")
-            else:
-                setpoints.append({
-                    'subject_id': subject,
-                    'code': code,
-                    'setpoint': setpoint,
-                    'uncertainty': uncertainty,
-                    'model_type': model
-                })
+        # Process and filter measurements
+        x, y, time = process_dataframe(group)
+        x, y, time = filter_measurements(x, y, time, args.min_gap, args.min_tests, args.year_cutoff)
+        if x is None:
+            continue
+
+        setpoint, cv, std, model = calculate_setpoint(y)
+        setpoints.append({
+            'subject_id': subject,
+            'code': code,
+            'setpoint': setpoint,
+            'cv': cv,
+            'std': std,
+            'model_type': model, 
+            'year_cutoff': args.year_cutoff,
+            'min_gap': args.min_gap,
+            'min_tests': args.min_tests,
+            'setpoint_estimation_time': time[-1],
+            'number_of_measurements': len(x), 
+            'time_period': time[-1] - time[0]
+        })
 
     # Save results
     if setpoints:
         setpoint_df = pd.DataFrame(setpoints)
-        output_file = os.path.join(args.output_dir, f'setpoints_gap:{args.min_gap}_tests:{args.min_tests}.csv')
-        setpoint_df.to_csv(output_file, index=False)
+        output_file = os.path.join(args.output_dir, f'setpoints_gap:{args.min_gap}_tests:{args.min_tests}_year:{args.year_cutoff}.csv')
+        setpoint_df.to_csv(output_file, index=False, float_format='%.10g')
 
         print(f"Original number of subjects: {len(df.subject_id.unique())}")
         # For each code, print the number of subjects with valid setpoints
@@ -156,22 +190,6 @@ def main():
             print(f"Number of subjects with valid setpoints for {code}: {len(setpoint_df[setpoint_df.code == code].subject_id.unique())}")
         print(f"\nFound valid setpoints for {len(setpoints)} subjects")
         print(f"Results saved to {output_file}")
-    
-    # Analyze insufficient data cases
-    if insufficient_data:
-        insuff_df = pd.DataFrame(insufficient_data)
-        print("\nInsufficient data summary by code:")
-        summary = insuff_df.groupby('code').agg({
-            'subject_id': 'count',
-            'n_measurements': ['mean', 'min', 'max']
-        })
-        summary.columns = ['n_subjects', 'avg_measurements', 'min_measurements', 'max_measurements']
-        print(summary)
-        
-        # Save insufficient data cases
-        insuff_file = os.path.join(f'../logs/insufficient_gap:{args.min_gap}_tests:{args.min_tests}.csv')
-        insuff_df.to_csv(insuff_file, index=False)
-        print(f"\nInsufficient data cases saved to {insuff_file}")
 
 if __name__ == "__main__":
     main()

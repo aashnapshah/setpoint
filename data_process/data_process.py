@@ -1,14 +1,16 @@
 import os
 import argparse
 import pandas as pd
-from typing import Dict, Union, Tuple
+from typing import Dict, Union, Tuple, Optional, List
 import glob
 import datasets
 
-from processors.demographics import get_demographics_data, get_demographic_summary
-from processors.measurements import get_bmi_data, get_bmi_statistics
-from processors.cbc import get_cbc_data, get_cbc_subject_statistics
-from processors.outcomes import get_mortality_data
+import sys
+
+from processors.demographics import process_demographics
+from processors.measurements import process_measurements 
+from processors.cbc import process_cbc, get_cbc_subject_statistics
+from processors.outcomes import get_mortality_date, process_diagnosis
 
 DEFAULT_PATH = '/Users/aashnashah/Desktop/ssh_mount/data/EHRSHOT/meds_omop_ehrshot/'
 
@@ -91,9 +93,7 @@ def merge_patient_data(data_dict: Dict[str, pd.DataFrame], time_tolerance: pd.Ti
     }
     
     if time_series_dfs:
-        # Ensure consistent datetime format for all time columns
         for df in time_series_dfs.values():
-            # Convert to UTC then remove timezone info
             df['time'] = pd.to_datetime(df['time']).astype('datetime64[s]')
             df.sort_values('time', inplace=True)
             
@@ -104,16 +104,22 @@ def merge_patient_data(data_dict: Dict[str, pd.DataFrame], time_tolerance: pd.Ti
             by="subject_id",
             direction="nearest",
         )
-        print(merged_df.head())
         
-        # Merge demographics
         demographics_df = filtered_dict['demographics'].copy()
         demographics_df['subject_id'] = demographics_df['subject_id'].astype(int)
-        final_df = merged_df.merge(demographics_df, on='subject_id', how='left')
         
-        # Convert DOB to datetime and remove timezone info for age calculation
-        final_df['DOB'] = pd.to_datetime(final_df['DOB']).astype('datetime64[s]')
-        final_df['Age'] = (final_df['time'] - final_df['DOB']).dt.days / 365.25
+        final_df = merged_df.merge(demographics_df, on='subject_id', how='left')
+        final_df['dob'] = pd.to_datetime(final_df['dob']).astype('datetime64[s]')
+        final_df['Age'] = (final_df['time'] - final_df['dob']).dt.days / 365.25
+        
+        # mortality_df = filtered_dict['mortality'].copy()
+        # final_df = final_df.merge(mortality_df, on='subject_id', how='left')
+        
+        # mortality_analysis = (final_df
+        #              .merge(death_df[['time', 'subject_id']], 
+        #                    on=['subject_id'], 
+        #                    how='left')
+        #              .rename(columns={'time': 'death_date'}))
         
     else:
         final_df = pd.DataFrame()
@@ -124,7 +130,6 @@ def get_processed_data(name: str, process_fn, args, dependencies=None) -> pd.Dat
     """Process data or load if exists."""
     processed_path = os.path.join(args.output_dir, "processed", f"{name}.csv")
     
-    # Load cached data if exists and not raw mode
     if not args.raw and os.path.exists(processed_path):
         print(f"Loading {name} data from {processed_path}")
         df = pd.read_csv(processed_path)
@@ -132,50 +137,44 @@ def get_processed_data(name: str, process_fn, args, dependencies=None) -> pd.Dat
             df['time'] = pd.to_datetime(df['time']).astype('datetime64[s]')
         return df
     
-    # Load raw data if needed
     if 'raw_df' not in globals():
         globals()['raw_df'] = load_dataset(args.data_dir)
         raw_df['time'] = pd.to_datetime(raw_df['time']).astype('datetime64[s]')
         get_dataset_statistics(raw_df, name="Raw", stage="Initial")
     
-    # Process data
     print(f"\nProcessing {name} data...")
     result = process_fn(raw_df, *dependencies) if dependencies else process_fn(raw_df)
+    get_dataset_statistics(result, name)
     save_csv(result, os.path.join(args.output_dir, "processed"), name)
     return result
 
 def main():
     args = parse_args()
-            
-    # Process data in stages
-    data_dict = {}
+        
+    demographics = get_processed_data("demographics", process_demographics, args=args, dependencies=[args.data_dir])    
+    body_measurements = get_processed_data("body_measurements", process_measurements, args=args)
+    cbc_measurements = get_processed_data("cbc_measurements", process_cbc, args=args, dependencies=[demographics])
+    mortality = get_processed_data("mortality", get_mortality_date, args=args)
     
-    # Base data
-    demographics = get_processed_data("demographics", get_demographics_data, args=args)
-    get_dataset_statistics(demographics, name="Demographics", stage="Initial")
+    path = '/Users/aashnashah/Desktop/ssh_mount/SETPOINT/data/icd_codes.pkl'    
+    diagnosis = get_processed_data("diagnosis", process_diagnosis, args=args, dependencies=[path])
     
-    body_measurements = get_processed_data("body_measurements", get_bmi_data, args=args)
-    get_dataset_statistics(body_measurements, name="Body Measurements", stage="Initial")
-    
-    cbc_measurements = get_processed_data("cbc_measurements", get_cbc_data, args=args, dependencies=[demographics])
-    get_dataset_statistics(cbc_measurements, name="CBC Measurements", stage="Initial")
-    
-    #mortality = get_processed_data("mortality", get_mortality_data, args=args, dependencies=[demographics])
     # Combine all processed data
     data_dict = {
         "demographics": demographics,
         "body_measurements": body_measurements,
-        "cbc_measurements": cbc_measurements
+        "cbc_measurements": cbc_measurements #,
+        #"mortality": mortality
     }
     
     # Merge data
     print("\nMerging Data:")
     filtered_data, merged_df = merge_patient_data(data_dict)
-    # Save outputs
-    save_csv(filtered_data, os.path.join(args.output_dir, "merged"))
+
+    save_csv(filtered_data, args.output_dir + "/merged/", name="filtered_data")
     save_csv(merged_df, args.output_dir, name="combined_subject_cbc_events")
-    
     get_dataset_statistics(merged_df, name="Combined CBC Events", stage="Final")
+    
     per_subject_stats = get_cbc_subject_statistics(filtered_data["cbc_measurements"])
     save_csv(per_subject_stats, os.path.join("../results/summary_statistics"), name="cbc_subject_statistics")
     

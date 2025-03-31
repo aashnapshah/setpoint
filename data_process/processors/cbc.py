@@ -13,25 +13,35 @@ CBC_ABBREVIATIONS = {
     'MCH': 'mean corpuscular hemoglobin',
     'MCHC': 'mean corpuscular hemoglobin concentration',
     'MPV': 'mean platelet volume', 
+    'MCV': 'mean corpuscular volume',
     'PLT': 'platelet count',
     'RBC': 'red cell count',
     'RDW': 'red cell distribution width',
-    'WBC': 'white cell count'
+    'WBC': 'white cell count',
+    'PCT': 'plateletcrit'
 }
 
-# get in the format of {code: loinc_code}
+# First, let's modify the LOINC_CODES dictionary to map from CBC codes to LOINC codes
 LOINC_CODES = {
-    'HGB': "LOINC/718-7", 
-    'HCT': "LOINC/4544-3", 
-    'RBC': "LOINC/789-8", 
-    'PLT': "LOINC/777-3", 
-    'MCH': "LOINC/785-6", 
-    'MCHC': "LOINC/786-4", 
-    'MCV': "LOINC/787-2", 
-    'RDW': "LOINC/788-0", 
-    'WBC': "LOINC/6690-2", 
+    'HGB': ["LOINC/718-7"], 
+    'HCT': ["LOINC/4544-3"], 
+    'RBC': ["LOINC/789-8"], 
+    'PLT': ["LOINC/777-3"], 
+    'MCH': ["LOINC/785-6"], 
+    'MCHC': ["LOINC/786-4"], 
+    'MCV': ["LOINC/787-2"], 
+    'MPV': ["LOINC/28542-9", "LOINC/32623-1"], 
+    'PCT': ['LOINC/51637-7', 'LOINC/66393-7'],
+    'RDW': ["LOINC/788-0"], 
+    'WBC': ["LOINC/6690-2"], 
 }
-LOINC_CODES = {v: k for k, v in LOINC_CODES.items()}
+
+# Create reverse mapping for lookup
+LOINC_TO_CBC = {
+    loinc: cbc_code
+    for cbc_code, loinc_list in LOINC_CODES.items()
+    for loinc in loinc_list
+}
 
 CBC_REFERENCE_INTERVALS = {
     'HCT': {'F': (36, 46, '%'), 'M': (41, 53, '%')},  
@@ -109,7 +119,7 @@ TEST_UNIT_STANDARDS = {
 }
 
 
-def get_cbc_data(df: pd.DataFrame, demographic_df: pd.DataFrame) -> pd.DataFrame:
+def process_cbc(df: pd.DataFrame, demographic_df: pd.DataFrame) -> pd.DataFrame:
     """
     Process CBC test results from the dataset.
     """
@@ -129,9 +139,16 @@ def extract_tests(df: pd.DataFrame) -> pd.DataFrame:
     """
     cbc_df = df[
         (df['table'] == 'measurement') & 
-        (df['code'].isin(LOINC_CODES.keys()))
+        (df['code'].isin(LOINC_TO_CBC.keys()))
     ].copy()
-    cbc_df['code'] = cbc_df['code'].replace(LOINC_CODES)
+    
+    # Map LOINC codes to CBC codes
+    cbc_df['code'] = cbc_df['code'].map(LOINC_TO_CBC)
+    
+    # Log which codes were found
+    print('Available CBC codes:', sorted(cbc_df['code'].unique()))
+    print('Missing CBC codes:', sorted(set(LOINC_CODES.keys()) - set(cbc_df['code'].unique())))
+    
     return cbc_df
 
 def standardize_units(df: pd.DataFrame) -> pd.DataFrame:
@@ -256,6 +273,7 @@ def get_cbc_subject_statistics(df: pd.DataFrame) -> pd.DataFrame:
         time_diffs = group['time'].diff().dropna().dt.total_seconds() / (60 * 60 * 24)  # Convert to days
         return pd.Series({
             'num_tests_taken': len(group),
+            'last_test_time': group['time'].max(),
             'num_tests_within_reference': len(group[group['within_reference'] == True]),
             'percentage_tests_within_reference': f"{len(group[group['within_reference'] == True]) / len(group) * 100:.2f}%",
             'days_between_first_and_last': (group['time'].max() - group['time'].min()).days,
@@ -290,9 +308,9 @@ def get_in_reference_interval(df: pd.DataFrame, demographic_df: pd.DataFrame) ->
     Flag subjects whose CBC values are within the reference interval.
     """
     # Merge the demographic data with the CBC data
-    merged_df = pd.merge(df, demographic_df[['subject_id', 'Gender']], on='subject_id', how='left')
+    merged_df = pd.merge(df, demographic_df[['subject_id', 'gender']], on='subject_id', how='left')
     merged_df['within_reference'] = merged_df.apply(lambda row: is_in_reference_interval(row), axis=1)
-    merged_df.drop(columns='Gender', inplace=True)
+    merged_df.drop(columns='gender', inplace=True)
     return merged_df
 
 def is_in_reference_interval(row: pd.Series) -> bool:
@@ -303,7 +321,7 @@ def is_in_reference_interval(row: pd.Series) -> bool:
     reference_interval = CBC_REFERENCE_INTERVALS[row['code']]   
     
     # Check if the value is within the reference interval
-    if row['Gender'] == 'F':
+    if row['gender'] == 'F':
         return row['numeric_value'] >= reference_interval['F'][0] and row['numeric_value'] <= reference_interval['F'][1]
     else:
         return row['numeric_value'] >= reference_interval['M'][0] and row['numeric_value'] <= reference_interval['M'][1]

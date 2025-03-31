@@ -1,0 +1,456 @@
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 162
+Number of subjects with valid setpoints for HGB: 165
+Number of subjects with valid setpoints for MCH: 164
+Number of subjects with valid setpoints for MCHC: 164
+Number of subjects with valid setpoints for MCV: 164
+Number of subjects with valid setpoints for PLT: 164
+Number of subjects with valid setpoints for RBC: 164
+Number of subjects with valid setpoints for RDW: 164
+
+Found valid setpoints for 1311 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2008.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 222
+Number of subjects with valid setpoints for HGB: 223
+Number of subjects with valid setpoints for MCH: 220
+Number of subjects with valid setpoints for MCHC: 220
+Number of subjects with valid setpoints for MCV: 220
+Number of subjects with valid setpoints for PLT: 219
+Number of subjects with valid setpoints for RBC: 220
+Number of subjects with valid setpoints for RDW: 220
+
+Found valid setpoints for 1764 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2010.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 302
+Number of subjects with valid setpoints for HGB: 302
+Number of subjects with valid setpoints for MCH: 303
+Number of subjects with valid setpoints for MCHC: 302
+Number of subjects with valid setpoints for MCV: 304
+Number of subjects with valid setpoints for PLT: 303
+Number of subjects with valid setpoints for RBC: 304
+Number of subjects with valid setpoints for RDW: 304
+
+Found valid setpoints for 2424 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2012.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 399
+Number of subjects with valid setpoints for WBC: 2
+Number of subjects with valid setpoints for HGB: 398
+Number of subjects with valid setpoints for MCH: 395
+Number of subjects with valid setpoints for MCHC: 396
+Number of subjects with valid setpoints for MCV: 397
+Number of subjects with valid setpoints for PLT: 396
+Number of subjects with valid setpoints for RBC: 397
+Number of subjects with valid setpoints for RDW: 397
+
+Found valid setpoints for 3177 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2014.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 519
+Number of subjects with valid setpoints for WBC: 7
+Number of subjects with valid setpoints for HGB: 515
+Number of subjects with valid setpoints for MCH: 507
+Number of subjects with valid setpoints for MCHC: 511
+Number of subjects with valid setpoints for MCV: 514
+Number of subjects with valid setpoints for PLT: 514
+Number of subjects with valid setpoints for RBC: 514
+Number of subjects with valid setpoints for RDW: 513
+
+Found valid setpoints for 4114 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2016.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 679
+Number of subjects with valid setpoints for WBC: 11
+Number of subjects with valid setpoints for HGB: 678
+Number of subjects with valid setpoints for MCH: 664
+Number of subjects with valid setpoints for MCHC: 675
+Number of subjects with valid setpoints for MCV: 677
+Number of subjects with valid setpoints for PLT: 678
+Number of subjects with valid setpoints for RBC: 677
+Number of subjects with valid setpoints for RDW: 676
+
+Found valid setpoints for 5415 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2018.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 861
+Number of subjects with valid setpoints for HGB: 862
+Number of subjects with valid setpoints for MCH: 855
+Number of subjects with valid setpoints for MCHC: 862
+Number of subjects with valid setpoints for MCV: 864
+Number of subjects with valid setpoints for PLT: 867
+Number of subjects with valid setpoints for RBC: 864
+Number of subjects with valid setpoints for RDW: 865
+Number of subjects with valid setpoints for WBC: 15
+
+Found valid setpoints for 6915 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2020.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1035
+Number of subjects with valid setpoints for HGB: 1032
+Number of subjects with valid setpoints for MCH: 1032
+Number of subjects with valid setpoints for MCHC: 1036
+Number of subjects with valid setpoints for MCV: 1037
+Number of subjects with valid setpoints for PLT: 1039
+Number of subjects with valid setpoints for RBC: 1037
+Number of subjects with valid setpoints for RDW: 1037
+Number of subjects with valid setpoints for WBC: 17
+
+Found valid setpoints for 8302 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2022.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1149
+Number of subjects with valid setpoints for HGB: 1147
+Number of subjects with valid setpoints for MCH: 1151
+Number of subjects with valid setpoints for MCHC: 1153
+Number of subjects with valid setpoints for MCV: 1154
+Number of subjects with valid setpoints for PLT: 1156
+Number of subjects with valid setpoints for RBC: 1154
+Number of subjects with valid setpoints for RDW: 1154
+Number of subjects with valid setpoints for WBC: 18
+
+Found valid setpoints for 9236 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:5_year:2024.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 194
+Number of subjects with valid setpoints for HGB: 198
+Number of subjects with valid setpoints for MCH: 195
+Number of subjects with valid setpoints for MCHC: 195
+Number of subjects with valid setpoints for MCV: 195
+Number of subjects with valid setpoints for PLT: 194
+Number of subjects with valid setpoints for RBC: 195
+Number of subjects with valid setpoints for RDW: 195
+
+Found valid setpoints for 1561 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2008.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 276
+Number of subjects with valid setpoints for HGB: 277
+Number of subjects with valid setpoints for MCH: 278
+Number of subjects with valid setpoints for MCHC: 278
+Number of subjects with valid setpoints for MCV: 278
+Number of subjects with valid setpoints for PLT: 276
+Number of subjects with valid setpoints for RBC: 278
+Number of subjects with valid setpoints for RDW: 279
+
+Found valid setpoints for 2220 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2010.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 382
+Number of subjects with valid setpoints for HGB: 382
+Number of subjects with valid setpoints for MCH: 385
+Number of subjects with valid setpoints for MCHC: 384
+Number of subjects with valid setpoints for MCV: 385
+Number of subjects with valid setpoints for PLT: 384
+Number of subjects with valid setpoints for RBC: 385
+Number of subjects with valid setpoints for RDW: 385
+
+Found valid setpoints for 3072 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2012.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 507
+Number of subjects with valid setpoints for HGB: 507
+Number of subjects with valid setpoints for MCH: 505
+Number of subjects with valid setpoints for MCHC: 507
+Number of subjects with valid setpoints for MCV: 507
+Number of subjects with valid setpoints for PLT: 508
+Number of subjects with valid setpoints for RBC: 506
+Number of subjects with valid setpoints for RDW: 507
+Number of subjects with valid setpoints for WBC: 2
+
+Found valid setpoints for 4056 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2014.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 652
+Number of subjects with valid setpoints for HGB: 651
+Number of subjects with valid setpoints for MCH: 638
+Number of subjects with valid setpoints for MCHC: 647
+Number of subjects with valid setpoints for MCV: 649
+Number of subjects with valid setpoints for PLT: 650
+Number of subjects with valid setpoints for RBC: 650
+Number of subjects with valid setpoints for RDW: 648
+Number of subjects with valid setpoints for WBC: 9
+
+Found valid setpoints for 5194 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2016.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 846
+Number of subjects with valid setpoints for HGB: 847
+Number of subjects with valid setpoints for MCH: 829
+Number of subjects with valid setpoints for MCHC: 843
+Number of subjects with valid setpoints for MCV: 845
+Number of subjects with valid setpoints for PLT: 846
+Number of subjects with valid setpoints for RBC: 846
+Number of subjects with valid setpoints for RDW: 845
+Number of subjects with valid setpoints for WBC: 15
+
+Found valid setpoints for 6762 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2018.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1055
+Number of subjects with valid setpoints for HGB: 1058
+Number of subjects with valid setpoints for MCH: 1047
+Number of subjects with valid setpoints for MCHC: 1056
+Number of subjects with valid setpoints for MCV: 1057
+Number of subjects with valid setpoints for PLT: 1058
+Number of subjects with valid setpoints for RBC: 1058
+Number of subjects with valid setpoints for RDW: 1056
+Number of subjects with valid setpoints for WBC: 19
+
+Found valid setpoints for 8464 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2020.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1269
+Number of subjects with valid setpoints for HGB: 1269
+Number of subjects with valid setpoints for MCH: 1266
+Number of subjects with valid setpoints for MCHC: 1269
+Number of subjects with valid setpoints for MCV: 1271
+Number of subjects with valid setpoints for PLT: 1272
+Number of subjects with valid setpoints for RBC: 1272
+Number of subjects with valid setpoints for RDW: 1270
+Number of subjects with valid setpoints for WBC: 22
+
+Found valid setpoints for 10180 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2022.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1389
+Number of subjects with valid setpoints for HGB: 1390
+Number of subjects with valid setpoints for MCH: 1392
+Number of subjects with valid setpoints for MCHC: 1395
+Number of subjects with valid setpoints for MCV: 1397
+Number of subjects with valid setpoints for PLT: 1396
+Number of subjects with valid setpoints for RBC: 1398
+Number of subjects with valid setpoints for RDW: 1396
+Number of subjects with valid setpoints for WBC: 23
+
+Found valid setpoints for 11176 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:5_year:2024.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 251
+Number of subjects with valid setpoints for HGB: 253
+Number of subjects with valid setpoints for MCH: 253
+Number of subjects with valid setpoints for MCHC: 253
+Number of subjects with valid setpoints for MCV: 253
+Number of subjects with valid setpoints for PLT: 252
+Number of subjects with valid setpoints for RBC: 253
+Number of subjects with valid setpoints for RDW: 253
+
+Found valid setpoints for 2021 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2008.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 351
+Number of subjects with valid setpoints for HGB: 353
+Number of subjects with valid setpoints for MCH: 349
+Number of subjects with valid setpoints for MCHC: 349
+Number of subjects with valid setpoints for MCV: 349
+Number of subjects with valid setpoints for PLT: 348
+Number of subjects with valid setpoints for RBC: 349
+Number of subjects with valid setpoints for RDW: 349
+
+Found valid setpoints for 2797 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2010.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 462
+Number of subjects with valid setpoints for HGB: 466
+Number of subjects with valid setpoints for MCH: 464
+Number of subjects with valid setpoints for MCHC: 464
+Number of subjects with valid setpoints for MCV: 464
+Number of subjects with valid setpoints for PLT: 461
+Number of subjects with valid setpoints for RBC: 464
+Number of subjects with valid setpoints for RDW: 464
+
+Found valid setpoints for 3709 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2012.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 612
+Number of subjects with valid setpoints for HGB: 609
+Number of subjects with valid setpoints for MCH: 606
+Number of subjects with valid setpoints for MCHC: 606
+Number of subjects with valid setpoints for MCV: 606
+Number of subjects with valid setpoints for PLT: 605
+Number of subjects with valid setpoints for RBC: 607
+Number of subjects with valid setpoints for RDW: 606
+Number of subjects with valid setpoints for WBC: 4
+
+Found valid setpoints for 4861 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2014.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 791
+Number of subjects with valid setpoints for HGB: 784
+Number of subjects with valid setpoints for MCH: 772
+Number of subjects with valid setpoints for MCHC: 779
+Number of subjects with valid setpoints for MCV: 781
+Number of subjects with valid setpoints for PLT: 781
+Number of subjects with valid setpoints for RBC: 781
+Number of subjects with valid setpoints for RDW: 781
+Number of subjects with valid setpoints for WBC: 15
+
+Found valid setpoints for 6265 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2016.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 999
+Number of subjects with valid setpoints for HGB: 993
+Number of subjects with valid setpoints for MCH: 986
+Number of subjects with valid setpoints for MCHC: 995
+Number of subjects with valid setpoints for MCV: 995
+Number of subjects with valid setpoints for PLT: 999
+Number of subjects with valid setpoints for RBC: 995
+Number of subjects with valid setpoints for RDW: 995
+Number of subjects with valid setpoints for WBC: 19
+
+Found valid setpoints for 7976 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2018.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1213
+Number of subjects with valid setpoints for HGB: 1203
+Number of subjects with valid setpoints for MCH: 1197
+Number of subjects with valid setpoints for MCHC: 1202
+Number of subjects with valid setpoints for MCV: 1202
+Number of subjects with valid setpoints for PLT: 1207
+Number of subjects with valid setpoints for RBC: 1202
+Number of subjects with valid setpoints for RDW: 1202
+Number of subjects with valid setpoints for WBC: 25
+
+Found valid setpoints for 9653 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2020.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1409
+Number of subjects with valid setpoints for HGB: 1400
+Number of subjects with valid setpoints for MCH: 1394
+Number of subjects with valid setpoints for MCHC: 1397
+Number of subjects with valid setpoints for MCV: 1399
+Number of subjects with valid setpoints for PLT: 1405
+Number of subjects with valid setpoints for RBC: 1399
+Number of subjects with valid setpoints for RDW: 1399
+Number of subjects with valid setpoints for WBC: 26
+
+Found valid setpoints for 11228 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2022.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1508
+Number of subjects with valid setpoints for HGB: 1502
+Number of subjects with valid setpoints for MCH: 1490
+Number of subjects with valid setpoints for MCHC: 1493
+Number of subjects with valid setpoints for MCV: 1495
+Number of subjects with valid setpoints for PLT: 1502
+Number of subjects with valid setpoints for RBC: 1495
+Number of subjects with valid setpoints for RDW: 1495
+Number of subjects with valid setpoints for WBC: 27
+
+Found valid setpoints for 12007 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:30_tests:3_year:2024.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 275
+Number of subjects with valid setpoints for HGB: 278
+Number of subjects with valid setpoints for MCH: 272
+Number of subjects with valid setpoints for MCHC: 272
+Number of subjects with valid setpoints for MCV: 272
+Number of subjects with valid setpoints for PLT: 272
+Number of subjects with valid setpoints for RBC: 272
+Number of subjects with valid setpoints for RDW: 272
+
+Found valid setpoints for 2185 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2008.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 412
+Number of subjects with valid setpoints for HGB: 413
+Number of subjects with valid setpoints for MCH: 406
+Number of subjects with valid setpoints for MCHC: 406
+Number of subjects with valid setpoints for MCV: 406
+Number of subjects with valid setpoints for PLT: 406
+Number of subjects with valid setpoints for RBC: 406
+Number of subjects with valid setpoints for RDW: 406
+
+Found valid setpoints for 3261 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2010.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 555
+Number of subjects with valid setpoints for HGB: 563
+Number of subjects with valid setpoints for MCH: 557
+Number of subjects with valid setpoints for MCHC: 557
+Number of subjects with valid setpoints for MCV: 557
+Number of subjects with valid setpoints for PLT: 556
+Number of subjects with valid setpoints for RBC: 557
+Number of subjects with valid setpoints for RDW: 557
+
+Found valid setpoints for 4459 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2012.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 715
+Number of subjects with valid setpoints for HGB: 713
+Number of subjects with valid setpoints for MCH: 706
+Number of subjects with valid setpoints for MCHC: 707
+Number of subjects with valid setpoints for MCV: 707
+Number of subjects with valid setpoints for PLT: 704
+Number of subjects with valid setpoints for RBC: 708
+Number of subjects with valid setpoints for RDW: 708
+Number of subjects with valid setpoints for WBC: 4
+
+Found valid setpoints for 5672 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2014.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 931
+Number of subjects with valid setpoints for HGB: 921
+Number of subjects with valid setpoints for MCH: 904
+Number of subjects with valid setpoints for MCHC: 914
+Number of subjects with valid setpoints for MCV: 917
+Number of subjects with valid setpoints for PLT: 919
+Number of subjects with valid setpoints for RBC: 917
+Number of subjects with valid setpoints for RDW: 917
+Number of subjects with valid setpoints for WBC: 23
+
+Found valid setpoints for 7363 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2016.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1164
+Number of subjects with valid setpoints for HGB: 1156
+Number of subjects with valid setpoints for MCH: 1143
+Number of subjects with valid setpoints for MCHC: 1157
+Number of subjects with valid setpoints for MCV: 1157
+Number of subjects with valid setpoints for PLT: 1163
+Number of subjects with valid setpoints for RBC: 1157
+Number of subjects with valid setpoints for RDW: 1157
+Number of subjects with valid setpoints for WBC: 27
+
+Found valid setpoints for 9281 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2018.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1405
+Number of subjects with valid setpoints for HGB: 1395
+Number of subjects with valid setpoints for MCH: 1385
+Number of subjects with valid setpoints for MCHC: 1392
+Number of subjects with valid setpoints for MCV: 1392
+Number of subjects with valid setpoints for PLT: 1400
+Number of subjects with valid setpoints for RBC: 1392
+Number of subjects with valid setpoints for RDW: 1391
+Number of subjects with valid setpoints for WBC: 34
+
+Found valid setpoints for 11186 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2020.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1642
+Number of subjects with valid setpoints for HGB: 1632
+Number of subjects with valid setpoints for MCH: 1619
+Number of subjects with valid setpoints for MCHC: 1626
+Number of subjects with valid setpoints for MCV: 1627
+Number of subjects with valid setpoints for PLT: 1640
+Number of subjects with valid setpoints for RBC: 1627
+Number of subjects with valid setpoints for RDW: 1627
+Number of subjects with valid setpoints for WBC: 37
+
+Found valid setpoints for 13077 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2022.csv
+Original number of subjects: 3044
+Number of subjects with valid setpoints for HCT: 1740
+Number of subjects with valid setpoints for HGB: 1733
+Number of subjects with valid setpoints for MCH: 1714
+Number of subjects with valid setpoints for MCHC: 1721
+Number of subjects with valid setpoints for MCV: 1722
+Number of subjects with valid setpoints for PLT: 1732
+Number of subjects with valid setpoints for RBC: 1722
+Number of subjects with valid setpoints for RDW: 1722
+Number of subjects with valid setpoints for WBC: 38
+
+Found valid setpoints for 13844 subjects
+Results saved to ../results/setpoint_calculations/setpoints_gap:15_tests:3_year:2024.csv
