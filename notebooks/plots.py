@@ -84,7 +84,6 @@ def plot_setpoint_hr(results, title):
 
 
 def plot_interval_hr(results, ax=None):
-    # Create figure and axis only if not provided
     if ax is None:
         fig, ax = plt.subplots(figsize=(4, 3))
     else:
@@ -106,7 +105,7 @@ def plot_interval_hr(results, ax=None):
         palette=colors,
         s=50,  
         alpha=0.7,
-        ax=ax  # Use the provided ax
+        ax=ax  
     )
 
     for i, type_name in enumerate(results['Biomarker'].unique()):
@@ -145,23 +144,19 @@ def plot_interval_concordance(results, ax=None):
     results["Interval"] = results["biomarker"].astype(str).str.split('_').str[2].str.capitalize()
     results["Time"] = results["prediction_time"] + ' years'
 
-    # Create a numerical x-axis mapping for categorical codes
     unique_codes = sorted(results["code"].unique())
     code_mapping = {code: i * 2 for i, code in enumerate(unique_codes)}  # Space out categories
     colors = {'Setpoint': 'orange', 'Reference': palette[0]}
 
-    # Define a fixed offset for each prediction_time to avoid overlap
     prediction_times = sorted(results["prediction_time"].unique())
     time_offsets = {time: (i - len(prediction_times) / 2) * 0.5 for i, time in enumerate(prediction_times)}
 
-    # Apply mapping to create a spaced x-axis
     results["x_pos"] = results.apply(lambda row: code_mapping[row["code"]] + time_offsets[row["prediction_time"]], axis=1)
 
-    # Use provided `ax`, or create a new figure/axis if not given
     if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 3))  # Keep consistent with the other plot
+        fig, ax = plt.subplots(figsize=(4, 3))  
     else:
-        fig = ax.figure  # Get the figure from the provided axis
+        fig = ax.figure  
 
     # Add error bars
     for type_name in results['Interval'].unique():
