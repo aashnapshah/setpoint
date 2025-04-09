@@ -12,8 +12,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Calculate physiological setpoints from CBC data")
     parser.add_argument("--min_gap", type=int, default=30, help="Minimum days between measurements")
     parser.add_argument("--min_tests", type=int, default=5, help="Minimum number of tests required")
-    parser.add_argument("--year_cutoff", type=int, default='2025', help="Only include data from before this year")
-    parser.add_argument("--data_dir", type=str, default="data", help="Directory containing CBC data")
+    parser.add_argument("--year_cutoff", type=int, default='2016', help="Only include data from before this year")
+    parser.add_argument("--data_dir", type=str, default="../data", help="Directory containing CBC data")
     parser.add_argument("--output_dir", type=str, default="results/setpoint_calculations", help="Output directory")
     return parser.parse_args()
 
@@ -48,7 +48,7 @@ def process_data(x, y):
     
     # Remove duplicates
     unique_x, unique_idx = np.unique(x, return_index=True)
-    return unique_x.reshape(-1, 1), y[unique_idx], time[unique_idx]
+    return unique_x.reshape(-1, 1), y[unique_idx], time[unique_idx] 
 
 def filter_measurements(x, y, time, min_gap, min_tests, year_cutoff):
     """Filter measurements by time gap and minimum tests."""
@@ -148,7 +148,7 @@ def calculate_cv(data):
 def main():
     args = parse_args()
     
-    df = pd.read_csv(os.path.join(args.data_dir, 'combined_subject_cbc_events.csv'))
+    df = pd.read_csv(os.path.join(args.data_dir, 'processed/cbc_measurements.csv'))
     
     # Process each group
     setpoints = []    
