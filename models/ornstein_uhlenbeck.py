@@ -63,15 +63,12 @@ def estimate_ou_parameters_with_prior(S, dt, prior_mean, prior_var, prior_sigma_
     sigma0 = prior_sigma_mean
 
     initial_guess = [theta0, mu0, sigma0]
-    min_theta = prior_mean - 3 * prior_sigma_mean
-    max_theta = prior_mean + 3 * prior_sigma_mean
-    
     result = minimize(
         fun=lambda params: -log_likelihood_ou_with_prior(params, S, dt,
                                                          prior_mean, prior_var,
                                                          prior_logsigma_mean, prior_logsigma_var),
         x0=initial_guess,
-        bounds=[(None, None), (1e-6, 1.0), (1e-3, sigma0)],  # Bound μ
+        bounds=[(None, None), (1/365, 1), (1e-3, sigma0)],  # Bound μ Bound μ (1/10 is 10 days) and sigma0 is 1000
         method='L-BFGS-B'
     )
 
@@ -99,31 +96,19 @@ def run_ou_with_prior(processed_df):
         try:
             sample = group[['time', 'numeric_value', 'sex']]
             sex = sample['sex'].unique()[0]
+            prior_mean, prior_var = priors[(test_name, sex)]['mean'], priors[(test_name, sex)]['var'] 
+            prior_sigma_mean = np.sqrt(prior_var) 
+            prior_sigma_var = 0.2   # log-variance of sigma (log-normal prior)
             
-            # only use points in the range
-            
-            # Get priors properly
-            if (test_name, sex) in priors:
-                prior_mean = priors[(test_name, sex)]['mean']
-                prior_var = priors[(test_name, sex)]['var']
-            else:
-                # Fallback if test/sex combination not found
-                prior_mean = sample['numeric_value'].mean()
-                prior_var = sample['numeric_value'].var()
-
-            
-            # Set sigma prior based on data variability
-            prior_sigma_mean = np.sqrt(priors[(test_name, sex)]['var'])
-            prior_sigma_var = 0.1  # More reasonable log-variance
-            
-                
-            filtered_sample = sample #sample[sample['numeric_value'].between(prior_mean - 2 * prior_sigma_mean, prior_mean + 2 * prior_sigma_mean)]     
+            filtered_sample = sample[sample['numeric_value'].between(prior_mean - 2 * prior_sigma_mean, prior_mean + 2 * prior_sigma_mean)]     
             df = filtered_sample.copy()
             df['time'] = pd.to_datetime(df['time'])
             df = df.sort_values('time')
             df['dt'] = df['time'].diff().dt.total_seconds().div(86400)
-            
             df = df.dropna()
+            
+            S = df['numeric_value'].values
+            dt = df['dt'].mean()
             
             if len(df) < 2:  # Need at least 2 points for OU
                 results.append({
@@ -143,14 +128,11 @@ def run_ou_with_prior(processed_df):
                 })
                 continue
             
-            S = df['numeric_value'].values
-            dt = df['dt'].mean()
-            #dt = df['dt'].mean() / 365.25
-            
             theta_ml, mu_ml, sigma_ml = estimate_ou_parameters_with_prior(
                 S, dt, prior_mean, prior_var, prior_sigma_mean, prior_sigma_var
             )
-        
+            ou_std_dev = min(prior_sigma_mean, sigma_ml / np.sqrt(2 * mu_ml))
+            
             results.append({
                 'subject_id': subject,
                 'test_name': test_name,
@@ -161,8 +143,8 @@ def run_ou_with_prior(processed_df):
                 'ou_prior_sigma_var': prior_sigma_var,
                 'ou_mean': theta_ml,
                 'ou_speed': mu_ml,
-                'ou_std': sigma_ml,
-                'ou_var': sigma_ml**2,
+                'ou_std': ou_std_dev,
+                'ou_var': ou_std_dev**2,
                 'n_measurements': len(S),
                 'dt_mean': dt
             })

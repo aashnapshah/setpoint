@@ -251,7 +251,7 @@ HFP_REFERENCE_INTERVALS = {
 
 LIPID_REFERENCE_INTERVALS = {
     'TC': {'F': (100, 200, 'mg/dL'), 'M': (100, 200, 'mg/dL')},
-    'HDL': {'F': (40, 60, 'mg/dL'), 'M': (40, 60, 'mg/dL')},
+    'HDL': {'F': (40, 100, 'mg/dL'), 'M': (40, 100, 'mg/dL')},
     'LDL': {'F': (0, 130, 'mg/dL'), 'M': (0, 130, 'mg/dL')},
     'TGL': {'F': (40, 150, 'mg/dL'), 'M': (40, 150, 'mg/dL')}
 }
