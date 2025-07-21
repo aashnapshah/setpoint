@@ -1,65 +1,12 @@
-2025-07-08 13:05:54,006 | INFO | arviz_base not installed
-2025-07-08 13:05:54,007 | INFO | arviz_stats not installed
-2025-07-08 13:05:54,007 | INFO | arviz_plots not installed
-2025-07-08 13:06:30,987 | INFO | Initializing NUTS using jitter+adapt_diag...
-2025-07-08 13:06:34,234 | INFO | Compiling new CVM
-2025-07-08 13:06:34,482 | INFO | New version 0.31
-2025-07-08 13:07:15,941 | INFO | Multiprocess sampling (2 chains in 2 jobs)
-2025-07-08 13:07:15,941 | INFO | NUTS: [η, ℓ, σ, f_pred]
-2025-07-08 13:08:47,114 | INFO | Initializing NUTS using jitter+adapt_diag...
-2025-07-08 13:08:52,541 | INFO | Multiprocess sampling (2 chains in 2 jobs)
-2025-07-08 13:08:52,541 | INFO | NUTS: [η, ℓ, σ, f_pred]
-2025-07-09 11:09:40,870 | INFO | arviz_base not installed
-2025-07-09 11:09:40,870 | INFO | arviz_stats not installed
-2025-07-09 11:09:40,870 | INFO | arviz_plots not installed
-2025-07-09 14:45:30,264 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 14:55:09,143 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 14:57:44,715 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 14:58:04,868 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-09 14:58:06,275 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-09 14:58:07,593 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-09 15:00:23,762 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 15:00:41,310 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-09 15:00:42,661 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-09 15:00:43,906 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-09 15:01:10,253 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4340484 Measurements
-2025-07-09 15:02:12,533 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 15:02:30,419 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-09 15:02:31,757 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-09 15:02:32,987 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-09 15:02:59,363 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4340484 Measurements
-2025-07-09 15:10:44,425 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 15:11:01,485 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-09 15:11:02,757 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-09 15:11:04,236 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-09 15:11:30,175 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4340484 Measurements
-2025-07-09 15:11:37,912 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4340484 Measurements
-2025-07-09 15:16:59,374 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-09 15:17:17,207 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-09 15:17:18,436 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-09 15:17:19,635 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-09 15:17:51,396 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4293690 Measurements
-2025-07-09 15:17:57,145 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4293690 Measurements
-2025-07-10 14:38:16,437 | INFO | arviz_base not installed
-2025-07-10 14:38:16,438 | INFO | arviz_stats not installed
-2025-07-10 14:38:16,438 | INFO | arviz_plots not installed
-2025-07-10 17:39:28,735 | INFO | arviz_base not installed
-2025-07-10 17:39:28,735 | INFO | arviz_stats not installed
-2025-07-10 17:39:28,735 | INFO | arviz_plots not installed
-2025-07-10 17:39:34,359 | INFO | arviz_base not installed
-2025-07-10 17:39:34,359 | INFO | arviz_stats not installed
-2025-07-10 17:39:34,359 | INFO | arviz_plots not installed
-2025-07-10 18:13:01,436 | INFO | arviz_base not installed
-2025-07-10 18:13:01,437 | INFO | arviz_stats not installed
-2025-07-10 18:13:01,437 | INFO | arviz_plots not installed
-2025-07-10 18:16:08,156 | INFO | arviz_base not installed
-2025-07-10 18:16:08,157 | INFO | arviz_stats not installed
-2025-07-10 18:16:08,157 | INFO | arviz_plots not installed
-2025-07-15 16:34:19,378 | INFO | arviz_base not installed
-2025-07-15 16:34:19,380 | INFO | arviz_stats not installed
-2025-07-15 16:34:19,380 | INFO | arviz_plots not installed
-2025-07-16 13:56:41,210 | INFO | arviz_base not installed
-2025-07-16 13:56:41,212 | INFO | arviz_stats not installed
-2025-07-16 13:56:41,212 | INFO | arviz_plots not installed
-2025-07-16 14:01:32,087 | INFO | Initializing NUTS using jitter+adapt_diag...
-2025-07-16 14:03:24,817 | INFO | Initializing NUTS using jitter+adapt_diag...
+2025-07-21 14:07:48,840 | INFO | Starting point | 6731 Patients | 39386333 Measurements
+2025-07-21 14:08:15,437 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
+2025-07-21 14:08:17,990 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
+2025-07-21 14:08:20,478 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
+2025-07-21 14:09:31,545 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4294206 Measurements
+2025-07-21 14:09:37,840 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4294206 Measurements
+2025-07-21 15:21:42,725 | INFO | Starting point | 6731 Patients | 39386333 Measurements
+2025-07-21 15:21:56,647 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
+2025-07-21 15:21:58,062 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
+2025-07-21 15:21:59,447 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
+2025-07-21 15:23:03,855 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4294206 Measurements
+2025-07-21 15:23:09,964 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4294206 Measurements
