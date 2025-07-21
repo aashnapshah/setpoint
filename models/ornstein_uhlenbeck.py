@@ -18,7 +18,6 @@ def log_likelihood_ou_with_prior(parameters, S, dt, prior_mean, prior_var, prior
     """OU log-likelihood with proper MAP prior"""
     theta, mu, sigma = parameters
 
-    # Enforce positivity constraints
     if mu <= 0 or sigma <= 0:
         return -np.inf
 
@@ -34,7 +33,6 @@ def log_likelihood_ou_with_prior(parameters, S, dt, prior_mean, prior_var, prior
         expected = x_prev * exp_term + theta * (1 - exp_term)
         variance = (sigma**2 / (2 * mu)) * (1 - np.exp(-2 * mu * dt))
 
-        # Numerical guard
         if variance <= 0 or np.isnan(variance):
             return -np.inf
 
