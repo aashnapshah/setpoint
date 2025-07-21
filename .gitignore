@@ -8,3 +8,8 @@ __pycache__/
 # Ignore everything inside data and results folders
 data/*
 results/*
+
+
+.csv
+.parquet
+.pkl
