@@ -1,0 +1,10 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore log files
+*.log
+
+# Ignore everything inside data and results folders
+data/*
+results/*
