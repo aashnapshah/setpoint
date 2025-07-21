@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 from typing import Tuple, Optional
-import sys
+import sys, os
 
-sys.path.append('../')
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from process.config import LOINC_CODES, REVERSE_LOINC_CODES, DATAPATH
 import logging
 import os
@@ -39,6 +39,7 @@ def filter_measurements(df: pd.DataFrame) -> pd.DataFrame:
     # Add test name column
     # need to add LOINC/ to the code in loinc_codes
     df['test_name'] = df['code'].str.replace('LOINC/', '').map(REVERSE_LOINC_CODES)
+    df['test_name'] = df['test_name'].fillna('NA')
     return df
 
 def remove_outliers(df: pd.DataFrame) -> pd.DataFrame:
@@ -163,27 +164,26 @@ def filter_measurements_foy(df, time_col='time', min_gap=30,
     grouped = df.groupby(['subject_id', 'test_name'])
 
     for (pt, test), group in tqdm(grouped):
-        pre2018_group = group[group['time'] < pd.Timestamp('2018-01-01')]
-        post2018_group = group[group['time'] >= pd.Timestamp('2018-01-01')]
+        pre_group = group[group['time'] < pd.Timestamp(f'{index_year}-01-01')]
 
-        if len(pre2018_group) < 5:
+        if len(pre_group) < min_tests:
             continue
 
         # Sort by date
-        sorted_group = pre2018_group.sort_values('time')
+        sorted_group = pre_group.sort_values('time')
         sorted_dates = sorted_group['time'].values
         sorted_indices = sorted_group.index
 
         isolated_indices = []
 
         for i in range(len(sorted_dates)):
-            left_ok = (i == 0) or (sorted_dates[i] - sorted_dates[i - 1] > np.timedelta64(30, 'D'))
-            right_ok = (i == len(sorted_dates) - 1) or (sorted_dates[i + 1] - sorted_dates[i] > np.timedelta64(30, 'D'))
+            left_ok = (i == 0) or (sorted_dates[i] - sorted_dates[i - 1] > np.timedelta64(min_gap, 'D'))
+            right_ok = (i == len(sorted_dates) - 1) or (sorted_dates[i + 1] - sorted_dates[i] > np.timedelta64(min_gap, 'D'))
 
             if left_ok and right_ok:
                 isolated_indices.append(sorted_indices[i])
 
-        if len(isolated_indices) >= 5:
+        if len(isolated_indices) >= min_tests:
             isolated_rows.extend(isolated_indices)
 
     # Final filtered df: isolated pre-2018 + all post-2018 from qualifying groups
@@ -259,45 +259,6 @@ def filter_measurements_yash(df, index_year=2018, min_gap=30, min_tests=5):
     df = df.loc[np.unique(rows_to_keep)]
     return df
     
-def filter_measurements_df(df, index_year=2018, min_gap=30, min_tests=5):
-    df['time'] = pd.to_datetime(df['time'])
-    # remove any rows after index year
-    grouped = df.groupby(['subject_id', 'test_name'])
-
-    # i find the longest subsequence of tests before the index year
-    # i check the subseq is at least 5 long and there is at least 1 more test post index
-    rows_to_keep = []
-    for (pt, test), group in tqdm(grouped, desc="Filtering sequences"):
-            pre_group = group[group['time'] < pd.Timestamp(f'{index_year}-01-01')]
-            post_group = group[group['time'] >= pd.Timestamp(f'{index_year}-01-01')]
-
-            #if not (post_group.shape[0] > 0):
-            #        continue # skip if no test afetr index
-
-            # Sort pre_group by time to get ordered dates with preserved index
-            pre_group_sorted = pre_group.sort_values('time')
-            dates = pre_group_sorted['time'].values
-
-            if len(dates) < min_tests:
-                continue  # skip if not enough test entries
-
-            # Build the subsequence and track corresponding indices
-            subsequence_indices = [pre_group_sorted.index[0]]
-            last_date = dates[0]
-
-            for i in range(1, len(dates)):
-                if (dates[i] - last_date) / np.timedelta64(1, 'D') >= min_gap:
-                    subsequence_indices.append(pre_group_sorted.index[i])
-                    last_date = dates[i]
-
-            # Keep if at least 5 tests are in subsequence
-            if len(subsequence_indices) >= min_tests:
-                rows_to_keep.extend(subsequence_indices)
-                # Always include all post-2018 rows
-                #rows_to_keep.extend(post_group.index)
-
-    df_filtered = df.loc[np.unique(rows_to_keep)]
-    return df_filtered
 
 def preprocess_pipeline(
     input_path: str = DATAPATH,
