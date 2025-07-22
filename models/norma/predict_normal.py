@@ -198,8 +198,8 @@ class TransformerEncoder(nn.Transformer):
         self.pos_encoder = DateTimeEmbedding(ntoken, ninp)
         self.layer_norm = nn.LayerNorm(ninp)
         self.dropout = nn.Dropout(dropout)
-        self.decoder = nn.Linear(ninp, 1)  # predict single value
-        self.combined_decoder = nn.Linear(ninp + 1, 1)  # for forecast_emb + target_health
+        self.decoder = nn.Linear(ninp, 1) 
+        self.combined_decoder = nn.Linear(ninp + 1, 1) 
         self.src_mask = None
         self.init_weights()
 
@@ -224,12 +224,11 @@ class TransformerEncoder(nn.Transformer):
         
         # Combine forecast embedding with target health status
         if target_health is not None:
-            target_health = target_health.to(device).unsqueeze(-1)  # [batch, 1]
-            # Concatenate forecast embedding with target health
-            combined_features = torch.cat([forecast_emb, target_health], dim=-1)  # [batch, ninp+1]
-            return self.combined_decoder(combined_features)  # outputs single prediction value
+            target_health = target_health.to(device).unsqueeze(-1)  
+            combined_features = torch.cat([forecast_emb, target_health], dim=-1)  
+            return self.combined_decoder(combined_features)  
         else:
-            return self.decoder(forecast_emb)  # outputs single prediction value
+            return self.decoder(forecast_emb)  
 
 # ============================================================================
 # TRAINING FUNCTIONS
@@ -295,7 +294,6 @@ def evaluate(model, loader, sequences, device='cpu', save_path=None):
             predictions_unhealthy = output_unhealthy.squeeze().cpu().numpy()
             
             for i in range(len(predictions_healthy)):
-                # Get the corresponding sequence data
                 seq_idx = batch_idx * loader.batch_size + i
                 if seq_idx < len(sequences):
                     sample = sequences[seq_idx]
@@ -304,7 +302,6 @@ def evaluate(model, loader, sequences, device='cpu', save_path=None):
                     context_times = sample['context_times']
                     forecast_time = sample['forecast_time']
                 else:
-                    # Fallback if index is out of range
                     patient_id = f"unknown_{seq_idx}"
                     values = []
                     context_times = []
@@ -316,8 +313,8 @@ def evaluate(model, loader, sequences, device='cpu', save_path=None):
                     'prediction_healthy': predictions_healthy[i],
                     'prediction_unhealthy': predictions_unhealthy[i],
                     'actual_target_health': target_health[i].item(),
-                    'input_values': str(values),  # Convert list to string for CSV
-                    'input_times': str(context_times),  # Convert list to string for CSV
+                    'input_values': str(values), 
+                    'input_times': str(context_times),  
                     'forecast_time': forecast_time,
                     'num_input_points': len(values)
                 })
@@ -334,11 +331,9 @@ def build_datasets(data_path, batch_size=16, test_size=0.2, val_size=0.1, random
     sequences = create_sequences(measurements)
     print(sequences[0])
     
-    # Split data
     train_data, temp_data = train_test_split(sequences, test_size=test_size, random_state=random_state)
     val_data, test_data = train_test_split(temp_data, test_size=val_size/(test_size), random_state=random_state)
     
-    # Create datasets
     train_dataset = HGBTimeSeriesDataset(train_data)
     val_dataset = HGBTimeSeriesDataset(val_data)
     test_dataset = HGBTimeSeriesDataset(test_data)
@@ -361,7 +356,6 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
     
-    # Hyperparameters
     batch_size = 32
     epochs = 10
     learning_rate = 1e-3
@@ -370,7 +364,6 @@ def main():
     print("=== Time Series Forecasting ===")
     print(f"Device: {device}")
     
-    # Build datasets
     print("\nBuilding datasets...")
     train_loader, val_loader, test_loader, max_seq_len, test_data = build_datasets(
         data_path, batch_size=batch_size, test_size=0.2, val_size=0.1, 
@@ -393,23 +386,19 @@ def main():
     )
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     
-    # Train model
     print("\nTraining model...")
     train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate, device=device)
     
-    # Save model
     model_path = os.path.join(save_dir, 'transformer_model_health.pt')
     torch.save(model.state_dict(), model_path)
     print(f"Model saved to: {model_path}")
     
-    # Evaluate on test set
     print("\nEvaluating model...")
     test_results = evaluate(
         model, test_loader, test_data, device=device, 
         save_path=os.path.join(results_dir, 'test_predictions_health.csv')
     )
     
-    # Calculate metrics
     mse_healthy = ((test_results['prediction_healthy'] - test_results['target']) ** 2).mean()
     mae_healthy = abs(test_results['prediction_healthy'] - test_results['target']).mean()
     
@@ -420,7 +409,6 @@ def main():
     print(f"Healthy Predictions - MSE: {mse_healthy:.4f}, MAE: {mae_healthy:.4f}")
     print(f"Unhealthy Predictions - MSE: {mse_unhealthy:.4f}, MAE: {mae_unhealthy:.4f}")
     
-    # Save summary statistics
     summary_stats = {
         'mse_healthy': mse_healthy,
         'mae_healthy': mae_healthy,
