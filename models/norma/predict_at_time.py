@@ -39,8 +39,8 @@ def create_sequences(df):
         times = patient_data['time'].tolist()
         values = patient_data['numeric_value'].values
 
-        if len(values) >= 3:  # Reduced minimum length requirement
-            # Only create one sequence per patient (predict last value)
+        if len(values) >= 3:  
+            # Only create one sequence per patient (predict last value) - may want to change this later to predict multiple values
             context_times = times[:-1]
             context_values = values[:-1]
             target_value = values[-1]
@@ -63,7 +63,6 @@ def create_sequences(df):
     global MAX_SEQ_LEN
     MAX_SEQ_LEN = max_len
     return sequences
-
 
 class HGBTimeSeriesDataset(Dataset):
     def __init__(self, sequences):
@@ -123,7 +122,6 @@ def build_datasets(data_path, batch_size=16, test_size=0.2, val_size=0.1, random
 # MODEL CREATION
 # ============================================================================
 
-# --- Positional Encoding Modules ---
 class SinusoidalPositionalEmbedding(nn.Embedding):
     def __init__(self, num_positions, embedding_dim, padding_idx=None):
         super().__init__(num_positions, embedding_dim)
@@ -161,7 +159,6 @@ class DateTimeEmbedding(nn.Module):
         hour = self.embed_time(input["time"])
         return year + month + day + hour
 
-# --- Transformer Encoder  ---
 class TransformerEncoder(nn.Transformer):
     def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5):
         super().__init__(
@@ -269,8 +266,8 @@ def evaluate(model, loader, sequences, device='cpu', save_path=None):
                     'patient_id': patient_id,
                     'target': target[i].item(),
                     'prediction': predictions[i],
-                    'input_values': str(values),  # Convert list to string for CSV
-                    'input_times': str(context_times),  # Convert list to string for CSV
+                    'input_values': str(values),  
+                    'input_times': str(context_times),  
                     'forecast_time': forecast_time,
                     'num_input_points': len(values)
                 })
@@ -283,7 +280,7 @@ def evaluate(model, loader, sequences, device='cpu', save_path=None):
 
 def build_datasets(data_path, batch_size=16, test_size=0.2, val_size=0.1, random_state=42, sample_frac=1.0):
     """Build train, validation, and test datasets"""
-    measurements = pd.read_csv(data_path, parse_dates=['time']).query('test_name == "HGB"').sample(frac=sample_frac)
+    measurements = pd.read_csv(data_path, parse_dates=['time']).query('test_name == "HGB"').sample(frac=sample_frac, random_state=random_state)
     sequences = create_sequences(measurements)
     print(sequences[0])
     
@@ -318,7 +315,7 @@ def main():
     batch_size = 32
     epochs = 10
     learning_rate = 1e-3
-    sample_frac = 0.1  # Use 10% of data for faster training
+    sample_frac = 1.0  # Use 10% of data for faster training
     
     print("=== Time Series Forecasting ===")
     print(f"Device: {device}")
