@@ -3,7 +3,7 @@ import numpy as np
 from typing import Tuple, Optional
 import sys, os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append( '../')
 from process.config import LOINC_CODES, REVERSE_LOINC_CODES, DATAPATH
 import logging
 import os
@@ -80,193 +80,12 @@ def total_ms_pts(db):
 
 def df_search(db, substring):
     mask = db.apply(lambda row: row.astype(str).str.contains(substring, case=False, na=False)).any(axis=1)
-    return db[mask]
-
-def filter_by_frequency(df: pd.DataFrame, day_gap: int = 30, min_labs: int = 5, cutoff_date: str = '2018-01-01') -> pd.DataFrame:
-    """Keep only patients/tests with at least min_labs labs day_gap days apart before cutoff_date."""
-    rows_to_keep = []
-    grouped = df.groupby(['subject_id', 'test_name'])
-    for (subject_id, test_name), group in grouped:
-        pre_cutoff_group = group[group['time'] < pd.Timestamp(cutoff_date)]
-        dates = np.sort(pd.to_datetime(pre_cutoff_group['time']))
-        if len(dates) < min_labs:
-            continue
-        subsequence = [dates[0]]
-        i = 1
-        while i < len(dates):
-            if (dates[i] - subsequence[-1]) / np.timedelta64(1, 'D') >= day_gap:
-                subsequence.append(dates[i])
-                if len(subsequence) == min_labs:
-                    rows_to_keep.extend(group.index)
-                    break
-            i += 1
-    df = df.loc[np.unique(rows_to_keep)]
-    log_status(df, f"Ensured {min_labs}+ labs with {day_gap}+ day gaps (before {cutoff_date})")
-    # Log number of setpoints by test
-    for test_name in LOINC_CODES.keys():
-        num_patients = df[df['test_name'] == test_name]['subject_id'].nunique()
-        logging.info(f"Setpoints for {test_name}: {num_patients} Patients")
-    return df
-
-
-def filter_test_sequences(df, index_year=2018, day_gap=30, min_pre_tests=5, save_path=None):
-    grouped = df.groupby(['subject_id', 'test_name'])
-    rows_to_keep = []
-    cutoff_date = pd.Timestamp(f'{index_year}-01-01')
-
-    for (pt, test), group in tqdm(grouped, desc="Filtering sequences"):
-        # Convert time column to datetime with error handling
-        group['time'] = pd.to_datetime(group['time'], errors='coerce')
-                
-        pre_group = group[group['time'] < cutoff_date]
-        post_group = group[group['time'] >= cutoff_date]
-
-        if post_group.empty:
-            continue
-
-        pre_group_sorted = pre_group.sort_values('time')
-        dates = pre_group_sorted['time'].values
-
-        if len(dates) < min_pre_tests:
-            continue
-
-        subsequence_indices = [pre_group_sorted.index[0]]
-        last_date = dates[0]
-
-        for i in range(1, len(dates)):
-            if (dates[i] - last_date) / np.timedelta64(1, 'D') >= day_gap:
-                subsequence_indices.append(pre_group_sorted.index[i])
-                last_date = dates[i]
-
-        if len(subsequence_indices) >= min_pre_tests:
-            rows_to_keep.extend(subsequence_indices)
-            #rows_to_keep.extend(post_group.index)
-
-    df_filtered = df.loc[np.unique(rows_to_keep)]
-
-    if save_path:
-        df_filtered.to_pickle(save_path)
-
-    return df_filtered.sort_values(by=['subject_id', 'test_name', 'time'])
-
-
-def filter_measurements_foy(df, time_col='time', min_gap=30,
-                                                min_tests=3, index_year=2022):
-    """
-    Filters DataFrame for (subject_id, test_name) groups that have at least `min_tests`
-    measurements before `index_year`, each at least `min_gap_days` apart.
-    Retains those and all post-`index_year` measurements from qualifying groups.
-    """
-    df = df.copy()
-    df[time_col] = pd.to_datetime(df[time_col])
-    isolated_rows = []
-    post2018_rows = []
-    grouped = df.groupby(['subject_id', 'test_name'])
-
-    for (pt, test), group in tqdm(grouped):
-        pre_group = group[group['time'] < pd.Timestamp(f'{index_year}-01-01')]
-
-        if len(pre_group) < min_tests:
-            continue
-
-        # Sort by date
-        sorted_group = pre_group.sort_values('time')
-        sorted_dates = sorted_group['time'].values
-        sorted_indices = sorted_group.index
-
-        isolated_indices = []
-
-        for i in range(len(sorted_dates)):
-            left_ok = (i == 0) or (sorted_dates[i] - sorted_dates[i - 1] > np.timedelta64(min_gap, 'D'))
-            right_ok = (i == len(sorted_dates) - 1) or (sorted_dates[i + 1] - sorted_dates[i] > np.timedelta64(min_gap, 'D'))
-
-            if left_ok and right_ok:
-                isolated_indices.append(sorted_indices[i])
-
-        if len(isolated_indices) >= min_tests:
-            isolated_rows.extend(isolated_indices)
-
-    # Final filtered df: isolated pre-2018 + all post-2018 from qualifying groups
-    df = df.loc[np.unique(isolated_rows + post2018_rows)]
-    return df
-
-
-def cutoff_measurements_df(df, percent=0.8, min_tests=5):
-    
-    df['time'] = pd.to_datetime(df['time'])
-    grouped = df.groupby(['subject_id', 'test_name'])
-    i = 0
-    rows_to_keep = []
-    for (pt, test), group in tqdm(grouped, desc="Filtering Sequences"):
-        # Sort by time
-        group_sorted = group.sort_values('time')
-        if len(group_sorted) < min_tests:
-            continue
-
-        # Get time range
-        start_time = group_sorted['time'].min()
-        end_time = group_sorted['time'].max()
-        total_time_range = end_time - start_time
-
-        # Calculate cutoff time by converting timedelta to hours first
-        time = total_time_range.total_seconds() 
-        cutoff = float(time) * percent
-        
-        cutoff_time = start_time + pd.Timedelta(seconds=cutoff)
-        measurements_in_range = group_sorted[group_sorted['time'] <= cutoff_time]
-        measurements_post_range = group_sorted[group_sorted['time'] > cutoff_time]
-        
-        if len(measurements_in_range) >= min_tests and len(measurements_post_range) > 0:
-            rows_to_keep.extend(measurements_in_range.index)
-        
-    df_filtered = df.loc[np.unique(rows_to_keep)]
-    return df_filtered.sort_values(['subject_id', 'test_name', 'time'])
-
-def filter_measurements_yash(df, index_year=2018, min_gap=30, min_tests=5):
-    grouped = df.groupby(['subject_id', 'test_name'])   
-    df['time'] = pd.to_datetime(df['time'])
-
-    # i find the longest subsequence of tests before the index year
-    # i check the subseq is at least 5 long and there is at least 1 more test post index
-    rows_to_keep = []
-    for (pt, test), group in tqdm(grouped):
-            pre_group = group[group['time'] < pd.Timestamp(f'{index_year}-01-01')]
-            #post_group = group[group['time'] >= pd.Timestamp(f'{index_year}-01-01')]
-
-            #if (post_group.shape[0] <= 0):
-            #    continue # skip if no test after index and required
-
-            # Sort pre_group by time to get ordered dates with preserved index
-            pre_group_sorted = pre_group.sort_values('time')
-            dates = pre_group_sorted['time'].values
-
-            if len(dates) < 5:
-                continue  # skip if not enough test entries
-
-            # Build the subsequence and track corresponding indices
-            subsequence_indices = [pre_group_sorted.index[0]]
-            last_date = dates[0]
-
-            for i in range(1, len(dates)):
-                if (dates[i] - last_date) / np.timedelta64(1, 'D') >= min_gap:
-                    subsequence_indices.append(pre_group_sorted.index[i])
-                    last_date = dates[i]
-
-            # Keep if at least 5 tests are in subsequence
-            if len(subsequence_indices) >= 5:
-                rows_to_keep.extend(subsequence_indices)
-
-    df = df.loc[np.unique(rows_to_keep)]
-    return df
-    
+    return db[mask]   
 
 def preprocess_pipeline(
     input_path: str = DATAPATH,
-    output_path: str = "../data/all_lab_measurements.pkl",
+    output_path: str = "../data/processed/all_lab_measurements.pkl",
     person_csv_path: str = "../data/raw/tables_csv/person.csv",
-    day_gap: int = 30,
-    min_labs: int = 5,
-    cutoff_date: str = '2018-01-01'
 ) -> pd.DataFrame:
     """Run the full preprocessing pipeline and save the result."""
     df = pd.read_parquet(input_path)
@@ -275,7 +94,6 @@ def preprocess_pipeline(
     df = remove_outliers(df)
     df = filter_by_age(df, person_csv_path)
     print(df.head())
-    #df = filter_by_frequency(df, day_gap, min_labs, cutoff_date)
     df = get_sex(df, person_csv_path)
     pd.to_pickle(df, output_path)
     df.to_csv(output_path.replace(".pkl", ".csv"), index=False)

@@ -8,7 +8,6 @@ from process.config import *
 
 np.random.seed(42)
 
-
 def calculate_subject_statistics(df, index_year=2018):
     stats_list = []
     grouped = df.groupby(['subject_id', 'test_name'])

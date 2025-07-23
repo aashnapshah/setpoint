@@ -1,12 +1,6 @@
-2025-07-21 14:07:48,840 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-21 14:08:15,437 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-21 14:08:17,990 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-21 14:08:20,478 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-21 14:09:31,545 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4294206 Measurements
-2025-07-21 14:09:37,840 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4294206 Measurements
-2025-07-21 15:21:42,725 | INFO | Starting point | 6731 Patients | 39386333 Measurements
-2025-07-21 15:21:56,647 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
-2025-07-21 15:21:58,062 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
-2025-07-21 15:21:59,447 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
-2025-07-21 15:23:03,855 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4294206 Measurements
-2025-07-21 15:23:09,964 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4294206 Measurements
+2025-07-22 16:39:29,387 | INFO | Starting point | 6731 Patients | 39386333 Measurements
+2025-07-22 16:39:54,993 | INFO | Removed non-CBC measurements | 6264 Patients | 4343175 Measurements
+2025-07-22 16:39:57,411 | INFO | Removed NaN values | 6263 Patients | 4340662 Measurements
+2025-07-22 16:39:59,701 | INFO | Removed values <= 0 | 6263 Patients | 4340484 Measurements
+2025-07-22 16:40:55,692 | INFO | Removed outliers (3 std outside mean) | 6263 Patients | 4294206 Measurements
+2025-07-22 16:41:01,512 | INFO | Enforced 13 < Age < 100 at test | 6263 Patients | 4294206 Measurements

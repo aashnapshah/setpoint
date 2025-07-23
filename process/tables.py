@@ -6,7 +6,7 @@ sys.path.append('../')
 from process.config import *
 from functools import reduce
 
-def make_censorship_df(df):
+def make_mem_end_csv(df):
     obs_table = pd.read_csv("../data/raw/tables_csv/observation.csv").rename(columns={'person_id': 'subject_id'})
     obs_pd_table = pd.read_csv("../data/raw/tables_csv/observation_period.csv").rename(columns={'person_id': 'subject_id'})
     death_table = pd.read_csv("../data/raw/tables_csv/death.csv").rename(columns={'person_id': 'subject_id'})
@@ -32,7 +32,6 @@ def make_censorship_df(df):
     dfs = [obs_pd_end_date, last_obs, last_visit_id, last_ehr_record, death_dt]
     # Merge all on 'subject_id', keeping all subject_ids and filling missing with NaN
     censorship_df = reduce(lambda left, right: pd.merge(left, right, on='subject_id', how='outer'), dfs)
-    censorship_df.to_csv("../data/processed/censorship_df.csv")
     return censorship_df
 
 def disease_onset_table(df, disease='t2d'):
@@ -42,6 +41,7 @@ def disease_onset_table(df, disease='t2d'):
     earliest_disease = disease_df.groupby('subject_id', as_index=False)['time'].min()
     return earliest_disease 
 
+# Get (right) censor dates from the mem_end table
 def censorship_algo(df):
     df = df.copy()
 
@@ -71,10 +71,33 @@ def censorship_algo(df):
     return df[['subject_id', 'censorship_date']]
 
 def main():
-    make_censorship_df()
-    disease_onset_table()
-    mem_end_dates = censorship_algo(pd.read_csv("../data/processed/censorship_df.csv"))
-    mem_end_dates.to_csv("../data/processed/mem_end_date.csv", index=False)
+    raw_df = pd.read_parquet('../data/raw/meds_omop_ehrshot/data/')
+
+    # Get mem_end dates and convert to final censor dates and save both
+    mem_end_dates = make_mem_end_csv(raw_df)
+    mem_end_dates.to_csv("../data/processed/mem_end_dates.csv")
+    censored_df = censorship_algo(mem_end_dates)
+    censored_df.to_csv("../data/processed/censorship_df.csv", index=False)
+
+    diseases = ['t2d', 'ckd', 'osteo', 'mace', 'af', 'hypertension', 'hyperlipidemia', 'nafld|nash']
+    disease_dfs = []
+
+    # Get disease onset dates
+    for disease in diseases:
+        print(f"DISEASE: {disease}")
+        df = disease_onset_table(raw_df, disease)
+        df = df.rename(columns={'time': f'{disease}_date'})
+        disease_dfs.append(df)
+
+    disease_df = reduce(lambda left, right: pd.merge(left, right, on='subject_id', how='outer'), disease_dfs)
+
+    # Get mortality dates
+    mortality_df = pd.read_csv('../data/raw/tables_csv/death.csv')[['person_id', 'death_DATE']].rename(columns={'death_DATE': 'mortality_date', 'person_id': 'subject_id'})
+
+    # Merge all dataframes
+    outcomes = disease_df.merge(censored_df, on='subject_id', how='outer').merge(mortality_df, on='subject_id', how='outer')
+    # save the outcomes dataframe
+    outcomes.to_csv('../data/processed/outcomes_df.csv')
 
 if __name__=='__main__':
     main()
