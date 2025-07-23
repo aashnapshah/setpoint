@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy.stats import norm
-from tqdm import tqdm  # ✅ Add missing import
+from tqdm import tqdm
 
 # append path
 sys.path.append('../')
@@ -12,7 +12,6 @@ from process.tables import *
 from models.bayes import *
 from models.predict import *
 from process.config import *
-from process.measurements import cutoff_measurements_df
 
 def log_likelihood_ou_with_prior(parameters, S, dt, prior_mean, prior_var, prior_logsigma_mean, prior_logsigma_var):
     """OU log-likelihood with proper MAP prior"""
@@ -71,18 +70,6 @@ def estimate_ou_parameters_with_prior(S, dt, prior_mean, prior_var, prior_sigma_
     )
 
     return result.x if result.success else initial_guess
-
-def get_priors_dict():
-    """Get priors from reference intervals"""
-    priors = {}
-    for test, intervals in REFERENCE_INTERVALS.items():
-        for sex, (low, high, _) in intervals.items():
-            key = (test, sex)
-            priors[key] = {
-                'mean': (low + high) / 2,
-                'var': ((high - low) / 4)**2
-            }
-    return priors
 
 def run_ou_with_prior(processed_df):
     """Run OU estimation with proper priors"""
