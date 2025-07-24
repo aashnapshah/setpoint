@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt  
 from scipy.stats import norm  
 from statsmodels.nonparametric.smoothers_lowess import lowess  
+from tqdm import tqdm
 
 import pymc as pm   
-import arviz as az      
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
@@ -141,17 +141,24 @@ def run_lowess_model(df, smooth_frac=0.70):
     df['time'] = pd.to_datetime(df['time'])
     results = []
 
-    for (subject_id, test_name), group in df.groupby(['subject_id', 'test_name']):
+    for (subject_id, test_name), group in tqdm(df.groupby(['subject_id', 'test_name']), desc="Lowess Smoothing"):
         seq = group[['time', 'numeric_value']].drop_duplicates().set_index('time').sort_index()
         curve, mean, std, x_mean, x_std = lowess_smooth(seq, frac=smooth_frac)
+
+        sex = group['sex'].iloc[0] if 'sex' in group.columns else None
+        age = max(group['age']) if 'age' in group.columns else None
+        latest_measurement_date = group['time'].max()
+
         results.append({
             'subject_id': subject_id,
             'test_name': test_name,
-            'smoothed_curve': curve,
-            'smoothed_mean': mean,
-            'smoothed_var': std**2, 
-            'smoothed_x_var': x_std**2,
-            'smoothed_x_mean': x_mean
+            'sex': sex,
+            'age': age,
+            'setpoint_mean': x_mean,
+            'setpoint_var': x_std**2,
+            'setpoint_date': latest_measurement_date,
+            'prior_mean': None,
+            'priot_var': None,
         })
     return pd.DataFrame(results)
 
