@@ -1,43 +1,125 @@
-# Input:
-#   - Past: sequence of (xᵢ, tᵢ, cᵢ)
-#   - Static variable: s
-#   - Future target condition/time: (t′, cₜ′)
-
-# 1. Encoder:
-#   - Eₓ(xᵢ): Value embedding
-#   - Eₜ(tᵢ): Time embedding
-#   - E_c(cᵢ): Condition embeddingq
-#   - E_s(s): Static embedding (broadcasted or added)
-
-#   → Token embedding: Eᵢ = Eₓ + Eₜ + E_c + E_s
-
-# 2. Transformer encoder on E₁...Eₙ
-
-# 3. Decoder:
-#   - Query token: Eₜ(t′) + E_c(cₜ′) + E_s(s)
-#   - Cross-attend to encoder output
-
-# 4. Output head:
-#   - FFN → Regression → Predict xₜ′
-
 import torch
 import torch.nn as nn
-from decoders import DecoderFactory
 
 class Time2Vec(nn.Module):
+    """Time2Vec embedding module (linear + periodic parts)."""
     def __init__(self, d_model):
         super().__init__()
-        self.d_model = d_model
-        self.linear = nn.Linear(1, 1)                      # Linear trend
-        self.periodic = nn.Linear(1, d_model - 1)          # Periodic components
+        self.linear = nn.Linear(1, 1)
+        self.periodic = nn.Linear(1, d_model - 1)
 
-    def forward(self, t):  # t: (B, T, 1) — scalar times or deltas
-        v_linear = self.linear(t)                          # (B, T, 1)
-        v_periodic = torch.sin(self.periodic(t))           # (B, T, D-1)
-        return torch.cat([v_linear, v_periodic], dim=-1)   # (B, T, D)
+    def forward(self, t):
+        v_linear = self.linear(t)                        # (B, T, 1)
+        v_periodic = torch.sin(self.periodic(t))         # (B, T, D-1)
+        return torch.cat([v_linear, v_periodic], dim=-1) # (B, T, D)
+
+class TransformerEncoder(nn.Module):
+    """Shared base logic for transformer models."""
+    def __init__(self, d_model, nhead, num_layers, num_lab_codes):
+        super().__init__()
+        self.value_embed = nn.Linear(1, d_model)
+        self.sex_embed = nn.Embedding(2, d_model)
+        self.lab_code_embed = nn.Embedding(num_lab_codes, d_model)
+        self.time_embed = Time2Vec(d_model)
+
+        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, batch_first=True)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+
+    def generate_causal_mask(self, seq_len, device):
+        """Generate lower triangular mask for autoregressive attention"""
+        mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
+        mask = mask.masked_fill(mask == 1, float('-inf'))
+        return mask
+
+    def encode_sequence(self, x, t, sex, lab_code, pad_mask=None, causal=True):
+        B, T = x.shape[:2]
+        sex_emb = self.sex_embed(sex).squeeze(1).unsqueeze(1).expand(B, T, -1)
+        lab_emb = self.lab_code_embed(lab_code).squeeze(1).unsqueeze(1).expand(B, T, -1)
+
+        encoder_input = self.value_embed(x) + self.time_embed(t) + sex_emb + lab_emb
+        attn_mask = self.generate_causal_mask(T, x.device)
+        
+        encoded = self.encoder(encoder_input, 
+                              mask=attn_mask,
+                              src_key_padding_mask=pad_mask)
+
+        # if pad_mask is not None:
+        #     mask = (~pad_mask).float().unsqueeze(-1)
+        #     return (encoded * mask).sum(dim=1) / mask.sum(dim=1)
+        return encoded[:, -1] #.mean(dim=1)
+
+class ConditionalDecoder(TransformerEncoder):
+    """Predicts a single distribution conditioned on query time and condition."""
+    def __init__(self, d_model=128, nhead=4, num_layers=4, num_lab_codes=2):
+        super().__init__(d_model, nhead, num_layers, num_lab_codes)
+
+        self.query_time_embed = Time2Vec(d_model)
+        self.query_cond_embed = nn.Embedding(2, d_model)
+        self.query_proj = nn.Linear(d_model * 2, d_model)
+
+        self.output_head = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(d_model, 2)
+        )
+
+    def process_query(self, query_t, query_c):
+        q_t = self.query_time_embed(query_t).squeeze(1)
+        q_c = self.query_cond_embed(query_c.squeeze(1))
+        return self.query_proj(torch.cat([q_t, q_c], dim=-1))
+
+    def forward(self, x, t, c, sex, lab_code, query_t, query_c, pad_mask=None, causal=True):
+        # Use causal=True for autoregressive training
+        Z = self.encode_sequence(x, t, sex, lab_code, pad_mask, causal=causal)
+        query = self.process_query(query_t, query_c)
+        combined = Z + query
+        output = self.output_head(combined)
+        return output[:, 0], output[:, 1]  # mu, log_var
+
+class DualDecoder(TransformerEncoder):
+    """Generates dual Gaussian distribution parameters (mu and log_var) for healthy and unhealthy conditions"""
+    def __init__(self, d_model=128, nhead=4, num_layers=4, num_lab_codes=2):
+        super().__init__(d_model, nhead, num_layers, num_lab_codes)
+
+        self.query_time_embed = Time2Vec(d_model)
+        self.query_proj = nn.Linear(d_model, d_model)
+
+        def decoder_head():
+            return nn.Sequential(
+                nn.Linear(d_model, d_model),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(d_model, 2) 
+            )
+
+        self.healthy_head = decoder_head()
+        self.unhealthy_head = decoder_head()
+        
+    def decode_healthy(self, Z, query_t):
+        q_emb = self.query_time_embed(query_t).squeeze(1)  # [B, d_model]
+        combined = Z + self.query_proj(q_emb)              # [B, d_model]
+        return self.healthy_head(combined)                 # [B, 2]
+
+    def decode_unhealthy(self, Z, query_t):
+        q_emb = self.query_time_embed(query_t).squeeze(1)
+        combined = Z + self.query_proj(q_emb)
+        return self.unhealthy_head(combined)
+
+    def decode_distributions(self, Z, query_t):
+        q_emb = self.query_time_embed(query_t).squeeze(1)
+        combined = Z + self.query_proj(q_emb)
+        healthy_params = self.healthy_head(combined)
+        unhealthy_params = self.unhealthy_head(combined)
+        return healthy_params, unhealthy_params  # Each: [B, 2]
+
+    def forward(self, x, t, sex, lab_code, query_t, pad_mask=None):
+        Z_seq = self.encode_sequence(x, t, sex, lab_code, pad_mask)  # [B, L, d_model]
+        Z = Z_seq.mean(dim=1)  # Simple mean pooling, shape: [B, d_model]
+        return self.decode_distributions(Z, query_t)
 
 class TimeConditionedTransformer(nn.Module):
-    def __init__(self, d_model=128, nhead=4, num_layers=4, num_lab_codes=2, decoder_type='nll', **decoder_kwargs):
+    def __init__(self, d_model=128, nhead=4, num_layers=4, num_lab_codes=2, **kwargs):
         super().__init__()
         self.value_embed = nn.Linear(1, d_model)
         self.cond_embed = nn.Embedding(2, d_model)
@@ -46,15 +128,16 @@ class TimeConditionedTransformer(nn.Module):
         
         self.time_embed = Time2Vec(d_model)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead)
+        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, batch_first=True)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
 
-        decoder_layer = nn.TransformerDecoderLayer(d_model, nhead)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers)
-
-        # Modular decoder head
-        self.decoder_type = decoder_type
-        self.output_head = DecoderFactory.create_decoder(decoder_type, d_model, **decoder_kwargs)
+        # Output head for distribution parameters (mu, log_var)
+        self.output_head = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(d_model, 2)  # mu and log_var
+        )
 
     def forward(self, x, t, c, sex, lab_code, query_t, query_c, pad_mask):
         # x: (B, T, 1)
@@ -78,26 +161,20 @@ class TimeConditionedTransformer(nn.Module):
         c_emb = self.cond_embed(c)  # (B, T, d_model)
         encoder_input = x_emb + t_emb + c_emb + s_emb
 
-        encoder_input = encoder_input.permute(1, 0, 2)  # (T, B, D)
-        memory = self.encoder(encoder_input, src_key_padding_mask=pad_mask)
-
-        # Query embeddings
-        q_t_emb = self.time_embed(query_t)
-        q_c_emb = self.cond_embed(query_c)
-        query = q_t_emb + q_c_emb  # (B, 1, D)
-        query = query.permute(1, 0, 2)
-
-        decoded = self.decoder(query, memory)
+        # Encode sequence (keep batch_first=True)
+        encoded = self.encoder(encoder_input, src_key_padding_mask=pad_mask)
         
-        # Handle different decoder output formats
-        if self.decoder_type == 'mdn':
-            # MDN expects (B, D) input
-            out = decoded.permute(1, 0, 2).squeeze(1)  # (B, D)
-            return self.output_head(out)  # Returns (pi, mu, log_var) tuple
+        # Global average pooling over time dimension
+        if pad_mask is not None:
+            # Mask out padded positions
+            mask = (~pad_mask).float().unsqueeze(-1)  # (B, T, 1)
+            encoded = encoded * mask
+            pooled = encoded.sum(dim=1) / mask.sum(dim=1)  # (B, d_model)
         else:
-            # Other decoders can handle the transformer output directly
-            out = self.output_head(decoded)  # (1, B, D)
-            out = out.permute(1, 0, 2)  # (B, 1, D)
-            out = out.squeeze(1)  # (B, D)
-            return out
-
+            pooled = encoded.mean(dim=1)  # (B, d_model)
+        
+        # Output distribution parameters
+        output = self.output_head(pooled)  # (B, 2)
+        mu = output[:, 0]      # (B,)
+        log_var = output[:, 1] # (B,)
+        return mu, log_var

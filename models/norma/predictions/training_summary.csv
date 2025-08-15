@@ -1,0 +1,4 @@
+split,mse,mae,hp_model_type,hp_d_model,hp_nhead,hp_num_layers,hp_decoder_type,hp_batch_size,hp_lr,hp_epochs,timestamp
+train,3.134293101729163,1.4200297069151644,single_mode,64,2,2,gaussian,32,0.001,2,2025-08-12T11:13:00.496088
+val,3.413288599758281,1.4576093816757203,single_mode,64,2,2,gaussian,32,0.001,2,2025-08-12T11:13:00.496088
+test,2.815951071446322,1.3328130228502735,single_mode,64,2,2,gaussian,32,0.001,2,2025-08-12T11:13:00.496088
