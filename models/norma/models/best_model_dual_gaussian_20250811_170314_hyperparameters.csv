@@ -1,0 +1,2 @@
+model_type,model_class,d_model,nhead,num_layers,decoder_type,batch_size,lr,epochs,sample_patients,training_timestamp,val_loss,epoch,lambda_align
+dual_mode,DualModeConditionalTransformer,64,2,2,gaussian,32,0.001,5,all,2025-08-11T17:03:14.076740,3.3758606815338137,0,0.1
