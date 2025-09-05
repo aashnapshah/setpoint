@@ -61,7 +61,16 @@ def train(args):
     df = load_data(args.data_path, args.sample_patients)
     train_loader, val_loader, test_loader = create_dataloaders(df, args.batch_size)
     num_lab_codes = len(df['test_name'].unique())
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Check if CUDA is available and set device accordingly
+    if not torch.cuda.is_available():
+        print("WARNING: CUDA is not available. Training will proceed on CPU which may be very slow.")
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda")
+        # Print GPU info
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
 
     model_classes = {
         'dual_mode': (DualDecoder, DualModeLoss),
@@ -83,6 +92,10 @@ def train(args):
     best_val_loss = float('inf')
 
     for epoch in range(args.epochs):
+        # Clear GPU cache before each epoch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         train_loss, train_forecast, train_align = run_epoch(model, train_loader, loss_fn, optimizer, device, train_mode=True)
         val_loss, val_metrics, _, _ = compute_comprehensive_metrics(model, val_loader, loss_fn, device, "val")
         
@@ -112,6 +125,11 @@ def train(args):
                 save_model(model, optimizer, epoch, val_loss, args, "best_model")
 
             scheduler.step(val_loss)
+
+        # Print GPU memory usage during training
+        if torch.cuda.is_available():
+            print(f"GPU Memory allocated: {torch.cuda.memory_allocated(0) / 1e9:.2f} GB")
+            print(f"GPU Memory cached: {torch.cuda.memory_reserved(0) / 1e9:.2f} GB")
 
     save_model(model, optimizer, args.epochs-1, val_loss, args, "final_model")
 
@@ -201,7 +219,10 @@ def run_epoch(model, loader, loss_fn, optimizer, device, train_mode=True):
     num_batches = 0
 
     for batch in tqdm(loader, desc="Train" if train_mode else "Valid"):
-        x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask, _ = batch
+        x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask, subject_ids = batch
+        x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask = [
+            b.to(device) for b in [x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask]
+        ]
 
         if train_mode:
             optimizer.zero_grad()
@@ -247,9 +268,10 @@ if __name__ == "__main__":
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--sample_patients', type=int, default=None)
     parser.add_argument('--model_type', type=str, choices=['dual_mode', 'single_mode'], default='single_mode')
-    parser.add_argument('--lambda_align', type=float, default=0.01)
-    parser.add_argument('--adaptive_weight', type=bool, default=True)
+    parser.add_argument('--lambda_align', type=float, default=0.5)
+    parser.add_argument('--adaptive_weight', type=bool, default=False)
     parser.add_argument('--wandb', type=bool, default=True)
+    parser.add_argument('--seed', type=int, default=0)
     args = parser.parse_args()
     args.decoder_kwargs = {}
     main(args)

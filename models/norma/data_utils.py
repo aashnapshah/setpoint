@@ -16,6 +16,12 @@ TEST_VOCAB = {
 CODE_TO_TEST_NAME = {i: test_name for test_name, i in TEST_VOCAB.items()}
 
 def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
+    # Move tensors to CPU before converting to numpy if they're on GPU
+    if torch.is_tensor(predictions):
+        predictions = predictions.cpu().numpy()
+    if torch.is_tensor(targets):
+        targets = targets.cpu().numpy()
+        
     mae = mean_absolute_error(targets, predictions)
     mse = mean_squared_error(targets, predictions)
     r2 = r2_score(targets, predictions)
@@ -56,8 +62,10 @@ def compute_comprehensive_metrics(model, loader, loss_fn, device, split_name: st
     
     with torch.no_grad():
         for batch in loader:
-            (x, t, c, sex, lab_code, query_t, query_c, y,
-             ref_mu, ref_var, pad_mask, subject_ids) = batch
+            x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask, subject_ids = batch
+            x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask = [
+                b.to(device) for b in [x, t, c, sex, lab_code, query_t, query_c, y, ref_mu, ref_var, pad_mask]
+            ]
             
             batch_size = x.size(0)
             count += batch_size
@@ -104,7 +112,7 @@ def compute_comprehensive_metrics(model, loader, loss_fn, device, split_name: st
                 test_name = CODE_TO_TEST_NAME.get(test_code, f"TEST_{test_code}")
                 
                 record = {
-                    'subject_id': subject_ids[i],
+                    'subject_id': subject_ids[i].item(),
                     'test_name': test_name,
                     'prediction': pred_mean[i].item(),
                     'variance': pred_var[i].item() if pred_var is not None else 0.0,
@@ -116,10 +124,10 @@ def compute_comprehensive_metrics(model, loader, loss_fn, device, split_name: st
                     mu_h, log_var_h = P_healthy
                     mu_u, log_var_u = P_unhealthy
                     record.update({
-                        'pred_healthy': mu_h[i].item(),
-                        'pred_unhealthy': mu_u[i].item(),
-                        'pred_healthy_var': torch.exp(log_var_h)[i].item(),
-                        'pred_unhealthy_var': torch.exp(log_var_u)[i].item(),
+                        'pred_healthy': mu_h[i].cpu().item(),
+                        'pred_unhealthy': mu_u[i].cpu().item(),
+                        'pred_healthy_var': torch.exp(log_var_h)[i].cpu().item(),
+                        'pred_unhealthy_var': torch.exp(log_var_u)[i].cpu().item(),
                     })
                 elif isinstance(model, ConditionalDecoder):
                     with torch.no_grad():
@@ -131,19 +139,19 @@ def compute_comprehensive_metrics(model, loader, loss_fn, device, split_name: st
                         query_t_single = query_t[i:i+1]
                         pad_mask_single = pad_mask[i:i+1] if pad_mask is not None else None
                         
-                        query_c_healthy = torch.ones_like(query_c[i:i+1])
+                        query_c_healthy = torch.ones_like(query_c[i:i+1]).to(device)
                         mu_h, log_var_h = model(x_single, t_single, c_single, sex_single, 
                                                lab_code_single, query_t_single, query_c_healthy, pad_mask_single)
                         
-                        query_c_unhealthy = torch.zeros_like(query_c[i:i+1])
+                        query_c_unhealthy = torch.zeros_like(query_c[i:i+1]).to(device)
                         mu_u, log_var_u = model(x_single, t_single, c_single, sex_single,
                                                lab_code_single, query_t_single, query_c_unhealthy, pad_mask_single)
                     
                     record.update({
-                        'pred_healthy': mu_h[0].item(),
-                        'pred_unhealthy': mu_u[0].item(),
-                        'pred_healthy_var': torch.exp(log_var_h)[0].item(),
-                        'pred_unhealthy_var': torch.exp(log_var_u)[0].item(),
+                        'pred_healthy': mu_h[0].cpu().item(),
+                        'pred_unhealthy': mu_u[0].cpu().item(),
+                        'pred_healthy_var': torch.exp(log_var_h)[0].cpu().item(),
+                        'pred_unhealthy_var': torch.exp(log_var_u)[0].cpu().item(),
                     })
                 else:
                     record.update({
